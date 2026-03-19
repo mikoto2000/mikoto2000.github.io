@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>bcrypt 化ツール</title>
+  </head>
+  <body>
+    <input id="plain" type="text" placeholder="平文">
+    <button id="encode">bcrypt化</button>
+    <pre id="result"></pre>
+
+    <script type="module">
+      import bcrypt from "https://esm.sh/bcryptjs";
+
+      const plain = document.getElementById("plain");
+      const button = document.getElementById("encode");
+      const result = document.getElementById("result");
+
+      button.addEventListener("click", async () => {
+        const value = plain.value;
+        if (!value) {
+          result.textContent = "文字列を入力してください";
+          return;
+        }
+
+        const cost = 10;
+        const hash = await bcrypt.hash(value, cost);
+        result.textContent = hash;
+      });
+    </script>
+  </body>
+</html>
