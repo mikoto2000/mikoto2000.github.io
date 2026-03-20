@@ -6,27 +6,65 @@
     <title>bcrypt 化ツール</title>
   </head>
   <body>
-    <input id="plain" type="text" placeholder="平文">
-    <button id="encode">bcrypt化</button>
-    <pre id="result"></pre>
+    <h1>bcrypt ハッシュ化 / 照合</h1>
+
+    <section>
+      <h2>ハッシュ化</h2>
+      <input id="encodePlain" type="password" placeholder="平文パスワード">
+      <button id="encode">bcrypt化</button>
+      <pre id="encodedResult"></pre>
+    </section>
+
+    <section>
+      <h2>照合</h2>
+      <input id="verifyPlain" type="password" placeholder="平文パスワード">
+      <input id="verifyHash" type="text" placeholder="保存済み bcrypt ハッシュ" size="80">
+      <button id="verify">照合</button>
+      <pre id="verifyResult"></pre>
+    </section>
 
     <script type="module">
       import bcrypt from "https://esm.sh/bcryptjs";
 
-      const plain = document.getElementById("plain");
-      const button = document.getElementById("encode");
-      const result = document.getElementById("result");
+      const encodePlain = document.getElementById("encodePlain");
+      const encodeButton = document.getElementById("encode");
+      const encodedResult = document.getElementById("encodedResult");
 
-      button.addEventListener("click", async () => {
-        const value = plain.value;
-        if (!value) {
-          result.textContent = "文字列を入力してください";
-          return;
+      const verifyPlain = document.getElementById("verifyPlain");
+      const verifyHash = document.getElementById("verifyHash");
+      const verifyButton = document.getElementById("verify");
+      const verifyResult = document.getElementById("verifyResult");
+
+      encodeButton.addEventListener("click", async () => {
+        try {
+          if (!encodePlain.value) {
+            encodedResult.textContent = "平文パスワードを入力してください";
+            return;
+          }
+
+          const cost = 10;
+          const hash = await bcrypt.hash(encodePlain.value, cost);
+          encodedResult.textContent = hash;
+
+          verifyHash.value = hash;
+          verifyPlain.value = encodePlain.value;
+        } catch (error) {
+          encodedResult.textContent = `bcrypt化に失敗しました: ${error.message}`;
         }
+      });
 
-        const cost = 10;
-        const hash = await bcrypt.hash(value, cost);
-        result.textContent = hash;
+      verifyButton.addEventListener("click", async () => {
+        try {
+          if (!verifyPlain.value || !verifyHash.value) {
+            verifyResult.textContent = "平文パスワードとハッシュの両方を入力してください";
+            return;
+          }
+
+          const matched = await bcrypt.compare(verifyPlain.value, verifyHash.value);
+          verifyResult.textContent = matched ? "一致しました" : "一致しません";
+        } catch (error) {
+          verifyResult.textContent = `照合に失敗しました: ${error.message}`;
+        }
       });
     </script>
   </body>
