@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Base64 encode/decode ツール</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 2em auto;
+        max-width: 900px;
+        line-height: 1.6;
+      }
+
+      textarea {
+        box-sizing: border-box;
+        display: block;
+        min-height: 10em;
+        width: 100%;
+      }
+
+      input,
+      button,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        margin: 0.5em 0;
+      }
+
+      .field {
+        margin: 1em 0;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5em;
+      }
+
+      .actions button {
+        margin: 0;
+      }
+
+      pre {
+        background: #f4f4f4;
+        overflow-x: auto;
+        padding: 1em;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Base64 encode/decode</h1>
+
+    <section>
+      <h2>encode</h2>
+      <div class="field">
+        <label for="encodeText">テキスト入力</label>
+        <textarea id="encodeText" placeholder="Base64 エンコードするテキスト"></textarea>
+      </div>
+      <div class="field">
+        <label for="encodeFile">ファイル入力</label>
+        <input id="encodeFile" type="file">
+      </div>
+      <div class="actions">
+        <button id="encodeTextButton" type="button">テキストをエンコード</button>
+        <button id="encodeFileButton" type="button">ファイルをエンコード</button>
+      </div>
+      <pre id="encodeResult"></pre>
+    </section>
+
+    <section>
+      <h2>decode</h2>
+      <div class="field">
+        <label for="decodeText">Base64 入力</label>
+        <textarea id="decodeText" placeholder="Base64 デコードする文字列"></textarea>
+      </div>
+      <div class="field">
+        <label for="downloadFileName">ダウンロードファイル名</label>
+        <input id="downloadFileName" type="text" value="decoded.bin">
+      </div>
+      <div class="actions">
+        <button id="decodeTextButton" type="button">テキスト表示</button>
+        <button id="downloadButton" type="button">ファイルダウンロード</button>
+      </div>
+      <pre id="decodeResult"></pre>
+    </section>
+
+    <script type="module">
+      const encodeText = document.getElementById("encodeText");
+      const encodeFile = document.getElementById("encodeFile");
+      const encodeTextButton = document.getElementById("encodeTextButton");
+      const encodeFileButton = document.getElementById("encodeFileButton");
+      const encodeResult = document.getElementById("encodeResult");
+
+      const decodeText = document.getElementById("decodeText");
+      const downloadFileName = document.getElementById("downloadFileName");
+      const decodeTextButton = document.getElementById("decodeTextButton");
+      const downloadButton = document.getElementById("downloadButton");
+      const decodeResult = document.getElementById("decodeResult");
+
+      const bytesToBase64 = (bytes) => {
+        let binary = "";
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          const chunk = bytes.subarray(i, i + chunkSize);
+          binary += String.fromCharCode(...chunk);
+        }
+        return btoa(binary);
+      };
+
+      const base64ToBytes = (base64) => {
+        const normalized = base64.replace(/\s/g, "");
+        if (!normalized) {
+          throw new Error("Base64 文字列を入力してください");
+        }
+
+        const binary = atob(normalized);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
+      };
+
+      encodeTextButton.addEventListener("click", () => {
+        try {
+          const bytes = new TextEncoder().encode(encodeText.value);
+          const base64 = bytesToBase64(bytes);
+          encodeResult.textContent = base64;
+          decodeText.value = base64;
+        } catch (error) {
+          encodeResult.textContent = `エンコードに失敗しました: ${error.message}`;
+        }
+      });
+
+      encodeFileButton.addEventListener("click", async () => {
+        try {
+          const file = encodeFile.files[0];
+          if (!file) {
+            encodeResult.textContent = "ファイルを選択してください";
+            return;
+          }
+
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const base64 = bytesToBase64(bytes);
+          encodeResult.textContent = base64;
+          decodeText.value = base64;
+          downloadFileName.value = file.name;
+        } catch (error) {
+          encodeResult.textContent = `エンコードに失敗しました: ${error.message}`;
+        }
+      });
+
+      decodeTextButton.addEventListener("click", () => {
+        try {
+          const bytes = base64ToBytes(decodeText.value);
+          decodeResult.textContent = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        } catch (error) {
+          decodeResult.textContent = `テキスト表示に失敗しました: ${error.message}`;
+        }
+      });
+
+      downloadButton.addEventListener("click", () => {
+        try {
+          const bytes = base64ToBytes(decodeText.value);
+          const blob = new Blob([bytes], { type: "application/octet-stream" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = downloadFileName.value || "decoded.bin";
+          document.body.append(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 0);
+          decodeResult.textContent = `${link.download} をダウンロードしました`;
+        } catch (error) {
+          decodeResult.textContent = `ファイルダウンロードに失敗しました: ${error.message}`;
+        }
+      });
+    </script>
+  </body>
+</html>
