@@ -103,7 +103,7 @@
         try {
           const requestedCount = parseCount();
           const generator = version.value === "v7" ? uuidv7 : uuidv4;
-          const uuids = Array.from({ length: requestedCount }, generator);
+          const uuids = Array.from({ length: requestedCount }, (v, i) => generator());
           result.value = uuids.join("\n");
           status.textContent = `${requestedCount} 件生成しました`;
         } catch (error) {
