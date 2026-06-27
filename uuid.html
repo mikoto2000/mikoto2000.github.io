@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UUID 生成ツール</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        line-height: 1.6;
+        margin: 2em auto;
+        max-width: 900px;
+      }
+
+      input,
+      button,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      input,
+      select {
+        box-sizing: border-box;
+        padding: 0.25em 0.4em;
+      }
+
+      textarea {
+        box-sizing: border-box;
+        display: block;
+        min-height: 18em;
+        width: 100%;
+      }
+
+      .field {
+        margin: 1em 0;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5em;
+        margin: 1em 0;
+      }
+
+      .status {
+        min-height: 1.6em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>UUID 生成</h1>
+
+    <section>
+      <div class="field">
+        <label for="version">UUID バージョン</label>
+        <select id="version">
+          <option value="v4">UUIDv4</option>
+          <option value="v7">UUIDv7</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="count">生成数</label>
+        <input id="count" type="number" min="1" max="10000" step="1" value="10">
+      </div>
+
+      <div class="actions">
+        <button id="generate" type="button">生成</button>
+        <button id="copy" type="button">コピー</button>
+        <button id="clear" type="button">クリア</button>
+      </div>
+
+      <textarea id="result" readonly placeholder="生成した UUID がここに表示されます"></textarea>
+      <p id="status" class="status" aria-live="polite"></p>
+    </section>
+
+    <script type="module">
+      import { v4 as uuidv4, v7 as uuidv7 } from "https://esm.sh/uuid";
+
+      const version = document.getElementById("version");
+      const count = document.getElementById("count");
+      const generateButton = document.getElementById("generate");
+      const copyButton = document.getElementById("copy");
+      const clearButton = document.getElementById("clear");
+      const result = document.getElementById("result");
+      const status = document.getElementById("status");
+
+      const parseCount = () => {
+        const requestedCount = Number(count.value);
+        if (!Number.isInteger(requestedCount) || requestedCount < 1) {
+          throw new Error("生成数は 1 以上の整数を指定してください");
+        }
+
+        if (requestedCount > 10000) {
+          throw new Error("生成数は 10000 以下にしてください");
+        }
+
+        return requestedCount;
+      };
+
+      generateButton.addEventListener("click", () => {
+        try {
+          const requestedCount = parseCount();
+          const generator = version.value === "v7" ? uuidv7 : uuidv4;
+          const uuids = Array.from({ length: requestedCount }, generator);
+          result.value = uuids.join("\n");
+          status.textContent = `${requestedCount} 件生成しました`;
+        } catch (error) {
+          status.textContent = error.message;
+        }
+      });
+
+      copyButton.addEventListener("click", async () => {
+        try {
+          if (!result.value) {
+            status.textContent = "コピーする UUID がありません";
+            return;
+          }
+
+          await navigator.clipboard.writeText(result.value);
+          status.textContent = "コピーしました";
+        } catch (error) {
+          status.textContent = `コピーに失敗しました: ${error.message}`;
+        }
+      });
+
+      clearButton.addEventListener("click", () => {
+        result.value = "";
+        status.textContent = "";
+      });
+    </script>
+  </body>
+</html>
