@@ -1,21 +1,20 @@
 {
   "routes": [
     {
-      "route": "/*",
-      "methods": [
-        "get",
-        "head",
-        "post",
-        "put",
-        "delete",
-        "connect",
-        "options",
-        "trace",
-        "patch"
+      "routes": [
+        {
+          "route": "/*",
+          "allowedRoles": [
+            "authenticated"
+          ]
+        }
       ],
-      "allowedRoles": [
-        "authenticated"
-      ]
+      "responseOverrides": {
+        "401": {
+          "statusCode": 302,
+          "redirect": "/.auth/login/aad"
+        }
+      }
     }
   ]
 }
