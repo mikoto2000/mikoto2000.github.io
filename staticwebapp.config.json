@@ -13,9 +13,6 @@
         "trace",
         "patch"
       ],
-      "rewrite": "/.auth/login/aad",
-      "redirect": "/",
-      "statusCode": 401,
       "allowedRoles": [
         "authenticated"
       ]
