@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Markdown 目次生成ツール</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --accent: #0069b4;
+        --border: #c9d2dc;
+        --surface: #ffffff;
+        --muted: #5b6672;
+        --soft: #f3f6f8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #f7f8fa;
+        color: #252a31;
+        font-family: sans-serif;
+        line-height: 1.6;
+        margin: 2em auto;
+        max-width: 1100px;
+        padding: 0 1em;
+      }
+
+      h1 {
+        color: var(--accent);
+        font-size: 1.9rem;
+        line-height: 1.25;
+        margin-bottom: 0.4em;
+      }
+
+      h2 {
+        font-size: 1.2rem;
+      }
+
+      input,
+      button,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        min-height: 2.4em;
+        padding: 0.35em 0.8em;
+      }
+
+      button:hover {
+        border-color: var(--accent);
+      }
+
+      textarea {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        display: block;
+        min-height: 18em;
+        padding: 0.75em;
+        resize: vertical;
+        width: 100%;
+      }
+
+      .layout {
+        display: grid;
+        gap: 1.5em;
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1em;
+      }
+
+      .toolbar,
+      .levels {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75em;
+        margin: 1em 0;
+      }
+
+      .levels label {
+        align-items: center;
+        display: inline-flex;
+        gap: 0.25em;
+      }
+
+      .help,
+      .status {
+        color: var(--muted);
+      }
+
+      .status {
+        min-height: 1.6em;
+      }
+
+      .toc-output {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        min-height: 14em;
+      }
+
+      .toc-preview {
+        background: var(--soft);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        min-height: 8em;
+        padding: 1em;
+      }
+
+      .toc-preview ul {
+        margin: 0.25em 0 0.25em 1.25em;
+        padding: 0;
+      }
+
+      .toc-preview a {
+        color: var(--accent);
+      }
+
+      @media (max-width: 860px) {
+        body {
+          margin-top: 1em;
+        }
+
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Markdown 目次生成ツール</h1>
+
+    <main class="layout">
+      <section class="panel" aria-labelledby="inputTitle">
+        <h2 id="inputTitle">Markdown 入力</h2>
+        <p class="help">Markdown の見出しから、各見出しへのリンク付き目次を生成します。</p>
+
+        <div class="levels" aria-label="目次に表示する見出しレベル">
+          <span>表示レベル</span>
+          <label><input class="level" type="checkbox" value="1" checked> H1</label>
+          <label><input class="level" type="checkbox" value="2" checked> H2</label>
+          <label><input class="level" type="checkbox" value="3" checked> H3</label>
+          <label><input class="level" type="checkbox" value="4"> H4</label>
+          <label><input class="level" type="checkbox" value="5"> H5</label>
+          <label><input class="level" type="checkbox" value="6"> H6</label>
+        </div>
+
+        <textarea id="markdownInput" spellcheck="false" placeholder="# タイトル&#10;&#10;## セクション&#10;&#10;### 詳細"></textarea>
+      </section>
+
+      <section class="panel" aria-labelledby="outputTitle">
+        <h2 id="outputTitle">目次</h2>
+        <div class="toolbar">
+          <button id="copyToc" type="button">Markdown をコピー</button>
+          <button id="clearInput" type="button">クリア</button>
+        </div>
+
+        <textarea id="tocOutput" class="toc-output" readonly spellcheck="false" placeholder="目次がここに表示されます"></textarea>
+
+        <h2>プレビュー</h2>
+        <nav id="tocPreview" class="toc-preview" aria-label="生成された目次"></nav>
+        <p id="status" class="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script type="module">
+      const markdownInput = document.getElementById("markdownInput");
+      const tocOutput = document.getElementById("tocOutput");
+      const tocPreview = document.getElementById("tocPreview");
+      const copyTocButton = document.getElementById("copyToc");
+      const clearInputButton = document.getElementById("clearInput");
+      const status = document.getElementById("status");
+      const levelCheckboxes = [...document.querySelectorAll(".level")];
+
+      const sampleMarkdown = `# プロジェクト概要
+
+## インストール
+
+### 必要な環境
+
+### 手順
+
+## 使い方
+
+### 基本操作
+
+#### 詳細設定`;
+
+      markdownInput.value = sampleMarkdown;
+
+      const selectedLevels = () => new Set(
+        levelCheckboxes
+          .filter((checkbox) => checkbox.checked)
+          .map((checkbox) => Number(checkbox.value)),
+      );
+
+      const stripInlineMarkdown = (value) => value
+        .replace(/`([^`]*)`/g, "$1")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/[*_~]/g, "")
+        .trim();
+
+      const slugify = (heading, counts) => {
+        const base = stripInlineMarkdown(heading)
+          .toLowerCase()
+          .replace(/<[^>]+>/g, "")
+          .replace(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "") || "heading";
+        const count = counts.get(base) || 0;
+        counts.set(base, count + 1);
+        return count === 0 ? base : `${base}-${count}`;
+      };
+
+      const extractHeadings = (markdown) => {
+        const headings = [];
+        const slugCounts = new Map();
+        let inFence = false;
+
+        markdown.split(/\r?\n/).forEach((line) => {
+          if (/^\s*(```|~~~)/.test(line)) {
+            inFence = !inFence;
+            return;
+          }
+          if (inFence) {
+            return;
+          }
+
+          const match = line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
+          if (!match) {
+            return;
+          }
+
+          const level = match[1].length;
+          const text = stripInlineMarkdown(match[2]);
+          if (!text) {
+            return;
+          }
+
+          headings.push({
+            level,
+            text,
+            anchor: slugify(text, slugCounts),
+          });
+        });
+
+        return headings;
+      };
+
+      const filteredHeadings = () => {
+        const levels = selectedLevels();
+        return extractHeadings(markdownInput.value).filter((heading) => levels.has(heading.level));
+      };
+
+      const buildMarkdownToc = (headings) => headings
+        .map((heading) => `${"  ".repeat(Math.max(0, heading.level - 1))}- [${heading.text}](#${heading.anchor})`)
+        .join("\n");
+
+      const renderPreview = (headings) => {
+        tocPreview.replaceChildren();
+        if (headings.length === 0) {
+          tocPreview.textContent = "表示対象の見出しがありません";
+          return;
+        }
+
+        const rootList = document.createElement("ul");
+        headings.forEach((heading) => {
+          const item = document.createElement("li");
+          const link = document.createElement("a");
+          item.style.marginLeft = `${Math.max(0, heading.level - 1)}em`;
+          link.href = `#${heading.anchor}`;
+          link.textContent = heading.text;
+          item.append(link);
+          rootList.append(item);
+        });
+        tocPreview.append(rootList);
+      };
+
+      const updateToc = () => {
+        const headings = filteredHeadings();
+        tocOutput.value = buildMarkdownToc(headings);
+        renderPreview(headings);
+        status.textContent = headings.length === 0 ? "" : `${headings.length} 件の見出しを抽出しました`;
+      };
+
+      markdownInput.addEventListener("input", updateToc);
+      levelCheckboxes.forEach((checkbox) => checkbox.addEventListener("change", updateToc));
+
+      copyTocButton.addEventListener("click", async () => {
+        try {
+          if (!tocOutput.value) {
+            status.textContent = "コピーする目次がありません";
+            return;
+          }
+
+          await navigator.clipboard.writeText(tocOutput.value);
+          status.textContent = "コピーしました";
+        } catch (error) {
+          status.textContent = `コピーに失敗しました: ${error.message}`;
+        }
+      });
+
+      clearInputButton.addEventListener("click", () => {
+        markdownInput.value = "";
+        updateToc();
+        status.textContent = "クリアしました";
+      });
+
+      updateToc();
+    </script>
+  </body>
+</html>
