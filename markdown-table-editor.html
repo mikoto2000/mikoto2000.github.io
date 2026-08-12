@@ -226,6 +226,11 @@
         min-height: 1.6em;
       }
 
+      .help {
+        color: var(--muted);
+        margin-top: 0;
+      }
+
       @media (max-width: 860px) {
         body {
           margin-top: 1em;
@@ -245,6 +250,7 @@
       <div class="layout">
         <section class="panel" aria-labelledby="editorTitle">
           <h2 id="editorTitle">テーブル編集</h2>
+          <p class="help">TSV をセルに貼り付けると、そのセルを起点に展開します。Ctrl+Z / Cmd+Z で操作を戻せます。</p>
           <div class="table-wrap">
             <table id="editorTable"></table>
           </div>
