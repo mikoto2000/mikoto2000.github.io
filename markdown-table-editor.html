@@ -268,6 +268,43 @@
         ],
       };
 
+      const undoStack = [];
+      const maxUndoHistory = 100;
+
+      const cloneState = () => ({
+        headers: [...state.headers],
+        aligns: [...state.aligns],
+        rows: state.rows.map((row) => [...row]),
+      });
+
+      const serializeState = (targetState) => JSON.stringify(targetState);
+
+      const pushUndoState = () => {
+        const snapshot = cloneState();
+        const serializedSnapshot = serializeState(snapshot);
+        const lastSnapshot = undoStack.at(-1);
+        if (lastSnapshot && serializeState(lastSnapshot) === serializedSnapshot) {
+          return;
+        }
+
+        undoStack.push(snapshot);
+        if (undoStack.length > maxUndoHistory) {
+          undoStack.shift();
+        }
+      };
+
+      const undo = () => {
+        const previousState = undoStack.pop();
+        if (!previousState) {
+          status.textContent = "戻せる操作がありません";
+          return;
+        }
+
+        state = previousState;
+        status.textContent = "元に戻しました";
+        render();
+      };
+
       const normalizeColumns = () => {
         const columnCount = Math.max(1, state.headers.length);
         state.headers = state.headers.slice(0, columnCount);
@@ -353,6 +390,7 @@
         const startColumnIndex = Number(cell.dataset.column);
         const tsvRows = parseTsv(clipboardText);
 
+        pushUndoState();
         ensurePasteSize(startRowIndex, startColumnIndex, tsvRows, startsInHeader);
 
         tsvRows.forEach((tsvRow, pastedRowIndex) => {
@@ -381,17 +419,24 @@
         wrapper.dataset.column = String(columnIndex);
         wrapper.dataset.header = String(isHeader);
         wrapper.innerText = value;
+        wrapper.addEventListener("beforeinput", (event) => {
+          if (event.inputType !== "historyUndo" && event.inputType !== "historyRedo") {
+            pushUndoState();
+          }
+        });
         wrapper.addEventListener("input", () => updateStateFromCell(wrapper));
         wrapper.addEventListener("paste", (event) => pasteTsv(wrapper, event));
         return wrapper;
       };
 
       const addEmptyRow = () => {
+        pushUndoState();
         state.rows.push(Array(state.headers.length).fill(""));
         render();
       };
 
       const addEmptyColumn = () => {
+        pushUndoState();
         state.headers.push(`列 ${state.headers.length + 1}`);
         state.aligns.push("left");
         state.rows.forEach((row) => row.push(""));
@@ -404,6 +449,7 @@
           return;
         }
 
+        pushUndoState();
         state.headers.splice(columnIndex, 1);
         state.aligns.splice(columnIndex, 1);
         state.rows.forEach((row) => row.splice(columnIndex, 1));
@@ -412,6 +458,11 @@
       };
 
       const setColumnAlignment = (columnIndex, align) => {
+        if (state.aligns[columnIndex] === align) {
+          return;
+        }
+
+        pushUndoState();
         state.aligns[columnIndex] = align;
         render();
       };
@@ -508,6 +559,7 @@
           deleteButton.className = "mini danger";
           deleteButton.textContent = "削除";
           deleteButton.addEventListener("click", () => {
+            pushUndoState();
             state.rows.splice(rowIndex, 1);
             if (state.rows.length === 0) {
               state.rows.push(Array(state.headers.length).fill(""));
@@ -544,6 +596,7 @@
       };
 
       resetTableButton.addEventListener("click", () => {
+        pushUndoState();
         state = {
           headers: ["列 1", "列 2", "列 3"],
           aligns: ["left", "left", "left"],
@@ -559,6 +612,13 @@
           status.textContent = "コピーしました";
         } catch (error) {
           status.textContent = `コピーに失敗しました: ${error.message}`;
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !event.shiftKey) {
+          event.preventDefault();
+          undo();
         }
       });
 
