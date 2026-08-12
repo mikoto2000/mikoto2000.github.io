@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Markdown テーブル WYSIWYG エディタ</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --accent: #0069b4;
+        --border: #c9d2dc;
+        --surface: #ffffff;
+        --muted: #5b6672;
+        --soft: #f3f6f8;
+        --danger: #b3261e;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #f7f8fa;
+        color: #252a31;
+        font-family: sans-serif;
+        line-height: 1.6;
+        margin: 2em auto;
+        max-width: 1180px;
+        padding: 0 1em;
+      }
+
+      h1 {
+        color: var(--accent);
+        font-size: 1.9rem;
+        line-height: 1.25;
+        margin-bottom: 0.4em;
+      }
+
+      h2 {
+        font-size: 1.2rem;
+      }
+
+      input,
+      button,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      button,
+      select {
+        min-height: 2.4em;
+      }
+
+      button {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        padding: 0.35em 0.8em;
+      }
+
+      button:hover {
+        border-color: var(--accent);
+      }
+
+      textarea {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        display: block;
+        min-height: 13em;
+        padding: 0.75em;
+        resize: vertical;
+        width: 100%;
+      }
+
+      .toolbar {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5em;
+        margin: 1em 0;
+      }
+
+      .layout {
+        display: block;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1em;
+      }
+
+      .table-wrap {
+        overflow: auto;
+      }
+
+      table {
+        border-collapse: collapse;
+        min-width: 100%;
+        table-layout: fixed;
+      }
+
+      th,
+      td {
+        border: 1px solid var(--border);
+        min-width: 9em;
+        padding: 0;
+        vertical-align: top;
+      }
+
+      th {
+        background: #eaf3fb;
+      }
+
+      .cell {
+        min-height: 2.5em;
+        outline: none;
+        overflow-wrap: anywhere;
+        padding: 0.55em 0.65em;
+      }
+
+      .cell:focus {
+        box-shadow: inset 0 0 0 2px var(--accent);
+      }
+
+      .row-actions,
+      .column-actions,
+      .alignment-actions {
+        background: var(--soft);
+        color: var(--muted);
+        font-size: 0.9rem;
+        font-weight: normal;
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      .row-actions {
+        min-width: 3.5em;
+        width: 3.5em;
+      }
+
+      .column-actions {
+        height: 2.4em;
+        padding: 0.2em;
+      }
+
+      .alignment-actions {
+        padding: 0.2em;
+      }
+
+      .mini {
+        min-height: 2em;
+        padding: 0.15em 0.45em;
+      }
+
+      .alignment-buttons {
+        display: flex;
+        gap: 0.2em;
+        justify-content: center;
+      }
+
+      .alignment-buttons .active {
+        background: #eaf3fb;
+        border-color: var(--accent);
+        color: var(--accent);
+        font-weight: bold;
+      }
+
+      .add-row-cell {
+        background: var(--surface);
+        border-bottom: 2px solid var(--accent);
+        border-left: 0;
+        border-right: 0;
+        height: 2.75em;
+        padding: 0;
+      }
+
+      .add-column-cell {
+        background: var(--surface);
+        border-bottom: 2px solid var(--accent);
+        border-right: 2px solid var(--accent);
+        min-width: 3em;
+        padding: 0;
+        position: relative;
+        width: 3em;
+      }
+
+      .add-row-line {
+        align-items: center;
+        background: transparent;
+        border: 0;
+        color: var(--accent);
+        display: flex;
+        font-size: 1.4rem;
+        font-weight: bold;
+        height: 100%;
+        justify-content: center;
+        min-height: 2.75em;
+        padding: 0;
+        width: 100%;
+      }
+
+      .add-column-line {
+        inset: 0;
+        min-height: auto;
+        position: absolute;
+      }
+
+      .add-row-line:hover,
+      .add-row-line:focus,
+      .add-column-line:hover,
+      .add-column-line:focus {
+        background: #eaf3fb;
+        outline: none;
+      }
+
+      .danger {
+        color: var(--danger);
+      }
+
+      .status {
+        color: var(--muted);
+        min-height: 1.6em;
+      }
+
+      @media (max-width: 860px) {
+        body {
+          margin-top: 1em;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Markdown テーブル WYSIWYG エディタ</h1>
+
+    <main>
+      <div class="toolbar">
+        <button id="copyMarkdown" type="button">Markdown をコピー</button>
+        <button id="resetTable" type="button" class="danger">初期化</button>
+      </div>
+
+      <div class="layout">
+        <section class="panel" aria-labelledby="editorTitle">
+          <h2 id="editorTitle">テーブル編集</h2>
+          <div class="table-wrap">
+            <table id="editorTable"></table>
+          </div>
+          <p id="status" class="status" aria-live="polite"></p>
+        </section>
+      </div>
+    </main>
+
+    <script type="module">
+      const tableElement = document.getElementById("editorTable");
+      const resetTableButton = document.getElementById("resetTable");
+      const copyMarkdownButton = document.getElementById("copyMarkdown");
+      const status = document.getElementById("status");
+
+      let state = {
+        headers: ["項目", "説明", "備考"],
+        aligns: ["left", "left", "left"],
+        rows: [
+          ["名前", "Markdown の表を編集", "セルを直接編集できます"],
+          ["出力", "GitHub Flavored Markdown", "コピーして貼り付け"],
+        ],
+      };
+
+      const normalizeColumns = () => {
+        const columnCount = Math.max(1, state.headers.length);
+        state.headers = state.headers.slice(0, columnCount);
+        state.aligns = state.aligns.slice(0, columnCount);
+        while (state.aligns.length < columnCount) {
+          state.aligns.push("left");
+        }
+        state.rows = state.rows.map((row) => {
+          const normalized = row.slice(0, columnCount);
+          while (normalized.length < columnCount) {
+            normalized.push("");
+          }
+          return normalized;
+        });
+      };
+
+      const escapeMarkdownCell = (value) => value
+        .replace(/\\/g, "\\\\")
+        .replace(/\|/g, "\\|")
+        .replace(/\r?\n/g, "<br>");
+
+      const alignmentMarker = (align) => {
+        if (align === "center") {
+          return ":---:";
+        }
+        if (align === "right") {
+          return "---:";
+        }
+        return "---";
+      };
+
+      const toMarkdown = () => {
+        normalizeColumns();
+        const header = `| ${state.headers.map(escapeMarkdownCell).join(" | ")} |`;
+        const align = `| ${state.aligns.map(alignmentMarker).join(" | ")} |`;
+        const rows = state.rows.map((row) => `| ${row.map(escapeMarkdownCell).join(" | ")} |`);
+        return [header, align, ...rows].join("\n");
+      };
+
+      const updateStateFromCell = (cell) => {
+        const rowIndex = Number(cell.dataset.row);
+        const columnIndex = Number(cell.dataset.column);
+        if (cell.dataset.header === "true") {
+          state.headers[columnIndex] = cell.innerText;
+        } else {
+          state.rows[rowIndex][columnIndex] = cell.innerText;
+        }
+      };
+
+      const parseTsv = (value) => {
+        const normalized = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n$/, "");
+        return normalized.split("\n").map((row) => row.split("\t"));
+      };
+
+      const ensurePasteSize = (startRowIndex, startColumnIndex, tsvRows, startsInHeader) => {
+        const requiredColumns = startColumnIndex + Math.max(...tsvRows.map((row) => row.length));
+        while (state.headers.length < requiredColumns) {
+          state.headers.push(`列 ${state.headers.length + 1}`);
+          state.aligns.push("left");
+          state.rows.forEach((row) => row.push(""));
+        }
+
+        const requiredRows = startsInHeader
+          ? tsvRows.length - 1
+          : startRowIndex + tsvRows.length;
+        while (state.rows.length < requiredRows) {
+          state.rows.push(Array(state.headers.length).fill(""));
+        }
+
+        normalizeColumns();
+      };
+
+      const pasteTsv = (cell, event) => {
+        const clipboardText = event.clipboardData?.getData("text/plain") || "";
+        if (!clipboardText.includes("\t") && !/[\r\n]/.test(clipboardText)) {
+          return;
+        }
+
+        event.preventDefault();
+
+        const startsInHeader = cell.dataset.header === "true";
+        const startRowIndex = Number(cell.dataset.row);
+        const startColumnIndex = Number(cell.dataset.column);
+        const tsvRows = parseTsv(clipboardText);
+
+        ensurePasteSize(startRowIndex, startColumnIndex, tsvRows, startsInHeader);
+
+        tsvRows.forEach((tsvRow, pastedRowIndex) => {
+          const targetIsHeader = startsInHeader && pastedRowIndex === 0;
+          const targetRowIndex = startsInHeader ? pastedRowIndex - 1 : startRowIndex + pastedRowIndex;
+
+          tsvRow.forEach((value, pastedColumnIndex) => {
+            const targetColumnIndex = startColumnIndex + pastedColumnIndex;
+            if (targetIsHeader) {
+              state.headers[targetColumnIndex] = value;
+            } else if (targetRowIndex >= 0) {
+              state.rows[targetRowIndex][targetColumnIndex] = value;
+            }
+          });
+        });
+
+        status.textContent = "TSV を貼り付けました";
+        render();
+      };
+
+      const createEditableCell = (value, rowIndex, columnIndex, isHeader) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "cell";
+        wrapper.contentEditable = "true";
+        wrapper.dataset.row = String(rowIndex);
+        wrapper.dataset.column = String(columnIndex);
+        wrapper.dataset.header = String(isHeader);
+        wrapper.innerText = value;
+        wrapper.addEventListener("input", () => updateStateFromCell(wrapper));
+        wrapper.addEventListener("paste", (event) => pasteTsv(wrapper, event));
+        return wrapper;
+      };
+
+      const addEmptyRow = () => {
+        state.rows.push(Array(state.headers.length).fill(""));
+        render();
+      };
+
+      const addEmptyColumn = () => {
+        state.headers.push(`列 ${state.headers.length + 1}`);
+        state.aligns.push("left");
+        state.rows.forEach((row) => row.push(""));
+        render();
+      };
+
+      const deleteColumn = (columnIndex) => {
+        if (state.headers.length <= 1) {
+          status.textContent = "最後の 1 列は削除できません";
+          return;
+        }
+
+        state.headers.splice(columnIndex, 1);
+        state.aligns.splice(columnIndex, 1);
+        state.rows.forEach((row) => row.splice(columnIndex, 1));
+        status.textContent = "列を削除しました";
+        render();
+      };
+
+      const setColumnAlignment = (columnIndex, align) => {
+        state.aligns[columnIndex] = align;
+        render();
+      };
+
+      const createAddColumnCell = (tagName = "td") => {
+        const cell = document.createElement(tagName);
+        const button = document.createElement("button");
+        cell.className = "add-column-cell";
+        cell.rowSpan = state.rows.length + 4;
+        button.type = "button";
+        button.className = "add-row-line add-column-line";
+        button.title = "列を追加";
+        button.setAttribute("aria-label", "列を追加");
+        button.textContent = "+";
+        button.addEventListener("click", addEmptyColumn);
+        cell.append(button);
+        return cell;
+      };
+
+      const createAlignmentButtons = (columnIndex) => {
+        const wrapper = document.createElement("div");
+        const options = [
+          ["left", "左"],
+          ["center", "中央"],
+          ["right", "右"],
+        ];
+        wrapper.className = "alignment-buttons";
+
+        options.forEach(([align, label]) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = state.aligns[columnIndex] === align ? "mini active" : "mini";
+          button.textContent = label;
+          button.title = `列 ${columnIndex + 1} を${label}寄せ`;
+          button.setAttribute("aria-label", `列 ${columnIndex + 1} を${label}寄せ`);
+          button.addEventListener("click", () => setColumnAlignment(columnIndex, align));
+          wrapper.append(button);
+        });
+
+        return wrapper;
+      };
+
+      const render = () => {
+        normalizeColumns();
+        tableElement.replaceChildren();
+
+        const columnActionRow = document.createElement("tr");
+        columnActionRow.append(document.createElement("th"));
+        state.headers.forEach((_, columnIndex) => {
+          const cell = document.createElement("th");
+          const deleteButton = document.createElement("button");
+          cell.className = "column-actions";
+          deleteButton.type = "button";
+          deleteButton.className = "mini danger";
+          deleteButton.textContent = "削除";
+          deleteButton.title = `列 ${columnIndex + 1} を削除`;
+          deleteButton.setAttribute("aria-label", `列 ${columnIndex + 1} を削除`);
+          deleteButton.addEventListener("click", () => deleteColumn(columnIndex));
+          cell.append(deleteButton);
+          columnActionRow.append(cell);
+        });
+        columnActionRow.append(createAddColumnCell("th"));
+        tableElement.append(columnActionRow);
+
+        const alignmentActionRow = document.createElement("tr");
+        alignmentActionRow.append(document.createElement("th"));
+        state.headers.forEach((_, columnIndex) => {
+          const cell = document.createElement("th");
+          cell.className = "alignment-actions";
+          cell.append(createAlignmentButtons(columnIndex));
+          alignmentActionRow.append(cell);
+        });
+        tableElement.append(alignmentActionRow);
+
+        const headerRow = document.createElement("tr");
+        const headerLabel = document.createElement("th");
+        headerLabel.className = "row-actions";
+        headerLabel.textContent = "見出し";
+        headerRow.append(headerLabel);
+        state.headers.forEach((header, columnIndex) => {
+          const cell = document.createElement("th");
+          cell.style.textAlign = state.aligns[columnIndex];
+          cell.append(createEditableCell(header, 0, columnIndex, true));
+          headerRow.append(cell);
+        });
+        tableElement.append(headerRow);
+
+        state.rows.forEach((row, rowIndex) => {
+          const tableRow = document.createElement("tr");
+          const actionCell = document.createElement("td");
+          actionCell.className = "row-actions";
+          const deleteButton = document.createElement("button");
+          deleteButton.type = "button";
+          deleteButton.className = "mini danger";
+          deleteButton.textContent = "削除";
+          deleteButton.addEventListener("click", () => {
+            state.rows.splice(rowIndex, 1);
+            if (state.rows.length === 0) {
+              state.rows.push(Array(state.headers.length).fill(""));
+            }
+            render();
+          });
+          actionCell.append(deleteButton);
+          tableRow.append(actionCell);
+
+          row.forEach((value, columnIndex) => {
+            const cell = document.createElement("td");
+            cell.style.textAlign = state.aligns[columnIndex];
+            cell.append(createEditableCell(value, rowIndex, columnIndex, false));
+            tableRow.append(cell);
+          });
+
+          tableElement.append(tableRow);
+        });
+
+        const addRow = document.createElement("tr");
+        const addRowCell = document.createElement("td");
+        const addRowButton = document.createElement("button");
+        addRowCell.className = "add-row-cell";
+        addRowCell.colSpan = state.headers.length + 1;
+        addRowButton.type = "button";
+        addRowButton.className = "add-row-line";
+        addRowButton.title = "行を追加";
+        addRowButton.setAttribute("aria-label", "行を追加");
+        addRowButton.textContent = "+";
+        addRowButton.addEventListener("click", addEmptyRow);
+        addRowCell.append(addRowButton);
+        addRow.append(addRowCell);
+        tableElement.append(addRow);
+      };
+
+      resetTableButton.addEventListener("click", () => {
+        state = {
+          headers: ["列 1", "列 2", "列 3"],
+          aligns: ["left", "left", "left"],
+          rows: [["", "", ""]],
+        };
+        status.textContent = "初期化しました";
+        render();
+      });
+
+      copyMarkdownButton.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(toMarkdown());
+          status.textContent = "コピーしました";
+        } catch (error) {
+          status.textContent = `コピーに失敗しました: ${error.message}`;
+        }
+      });
+
+      render();
+    </script>
+  </body>
+</html>
