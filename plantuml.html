@@ -412,21 +412,6 @@ nwdiag {
 }
 @endnwdiag`,
         },
-        salt: {
-          label: "UI ワイヤーフレーム",
-          source: `@startsalt
-{
-  {T
-    + PlantUML 入力
-    + SVG プレビュー
-  }
-  {
-    "source text" | [SVG をコピー]
-    ""            | [URL をコピー]
-  }
-}
-@endsalt`,
-        },
         archimate: {
           label: "Archimate 図",
           source: `@startuml
@@ -459,12 +444,6 @@ letter = "A" | "B" | "C" | "a" | "b" | "c";
 digit = "0" | "1" | "2";
 @endebnf`,
         },
-        math: {
-          label: "数式図",
-          source: `@startmath
-f(t)=(a_0)/2 + sum_(n=1)^oo a_n cos((n pi t)/L)
-@endmath`,
-        },
         ie: {
           label: "IE ER 図",
           source: `@startuml
@@ -484,27 +463,6 @@ entity Post {
 User ||--o{ Post
 @enduml`,
         },
-        chen: {
-          label: "Chen ER 図",
-          source: `@startchen
-left to right direction
-entity User {
-  id <<key>>
-  name
-}
-
-entity Post {
-  id <<key>>
-  title
-}
-
-relationship Writes {
-}
-
-User -1- Writes
-Writes -N- Post
-@endchen`,
-        },
         chart: {
           label: "チャート図",
           source: `@startchart
@@ -514,16 +472,6 @@ bar "Sales" [45, 62, 58, 70] #3498db
 line "Target" [50, 55, 60, 65] #e67e22
 legend right
 @endchart`,
-        },
-        files: {
-          label: "ファイルツリー図",
-          source: `@startfiles
-/index.html
-/plantuml.html
-/base.css
-/tools/markdown.md
-/tools/plantuml/sample.puml
-@endfiles`,
         },
         sdl: {
           label: "SDL 図",
@@ -539,18 +487,6 @@ else (no)
 endif
 stop
 @enduml`,
-        },
-        dot: {
-          label: "DOT 図",
-          source: `@startdot
-digraph G {
-  node [style=rounded]
-  input [shape=box]
-  render [shape=diamond]
-  preview [shape=box]
-  input -> render -> preview
-}
-@enddot`,
         },
       };
 
