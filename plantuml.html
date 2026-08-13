@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PlantUML SVG プレビューツール</title>
+    <script src="https://unpkg.com/@plantuml/core@1.2026.6/viz-global.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --accent: #0069b4;
+        --border: #c9d2dc;
+        --danger: #b42318;
+        --muted: #5b6672;
+        --soft: #f3f6f8;
+        --surface: #ffffff;
+        --text: #252a31;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #f7f8fa;
+        color: var(--text);
+        font-family: sans-serif;
+        line-height: 1.6;
+        margin: 2em auto;
+        max-width: 1180px;
+        padding: 0 1em;
+      }
+
+      h1 {
+        color: var(--accent);
+        font-size: 1.9rem;
+        line-height: 1.25;
+        margin-bottom: 0.4em;
+      }
+
+      h2 {
+        font-size: 1.2rem;
+        margin-top: 0;
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        min-height: 2.4em;
+        padding: 0.35em 0.8em;
+      }
+
+      button:hover {
+        border-color: var(--accent);
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.65;
+      }
+
+      textarea {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        display: block;
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        min-height: 31em;
+        padding: 0.75em;
+        resize: vertical;
+        width: 100%;
+      }
+
+      .layout {
+        display: grid;
+        gap: 1.5em;
+        grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1em;
+      }
+
+      .toolbar {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75em;
+        margin: 1em 0;
+      }
+
+      .toggle {
+        align-items: center;
+        display: inline-flex;
+        gap: 0.35em;
+      }
+
+      .preview {
+        align-items: flex-start;
+        background: var(--soft);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        display: flex;
+        justify-content: center;
+        min-height: 31em;
+        overflow: auto;
+        padding: 1em;
+      }
+
+      .preview svg {
+        height: auto;
+        max-width: 100%;
+      }
+
+      .placeholder,
+      .status {
+        color: var(--muted);
+      }
+
+      .error {
+        color: var(--danger);
+        white-space: pre-wrap;
+      }
+
+      .status {
+        min-height: 1.6em;
+      }
+
+      @media (max-width: 860px) {
+        body {
+          margin-top: 1em;
+        }
+
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PlantUML SVG プレビュー</h1>
+
+    <main class="layout">
+      <section class="panel" aria-labelledby="inputTitle">
+        <h2 id="inputTitle">PlantUML 入力</h2>
+        <textarea id="plantumlInput" spellcheck="false" aria-label="PlantUML 入力"></textarea>
+      </section>
+
+      <section class="panel" aria-labelledby="previewTitle">
+        <h2 id="previewTitle">SVG プレビュー</h2>
+
+        <div class="toolbar">
+          <button id="copySvgButton" type="button">SVG をコピー</button>
+          <button id="copyUrlButton" type="button">URL をコピー</button>
+          <button id="downloadSvgButton" type="button">SVG を保存</button>
+          <button id="sampleButton" type="button">サンプル</button>
+          <button id="clearButton" type="button">クリア</button>
+          <label class="toggle"><input id="darkMode" type="checkbox"> Dark</label>
+        </div>
+
+        <div id="preview" class="preview" aria-live="polite">
+          <p class="placeholder">プレビューがここに表示されます</p>
+        </div>
+        <p id="status" class="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script type="module">
+      const plantUmlModuleUrl = "https://unpkg.com/@plantuml/core@1.2026.6/plantuml.js";
+      const plantumlInput = document.getElementById("plantumlInput");
+      const preview = document.getElementById("preview");
+      const copySvgButton = document.getElementById("copySvgButton");
+      const copyUrlButton = document.getElementById("copyUrlButton");
+      const downloadSvgButton = document.getElementById("downloadSvgButton");
+      const sampleButton = document.getElementById("sampleButton");
+      const clearButton = document.getElementById("clearButton");
+      const darkMode = document.getElementById("darkMode");
+      const status = document.getElementById("status");
+
+      const samplePlantUml = `@startuml
+title PlantUML プレビュー
+
+actor User
+participant Browser
+participant "plantuml.js" as PlantUML
+
+User -> Browser : PlantUML を入力
+Browser -> PlantUML : renderToString(lines)
+PlantUML --> Browser : SVG
+Browser --> User : プレビュー表示
+@enduml`;
+
+      let plantUmlModulePromise;
+      let lastSvg = "";
+      let renderTimer;
+      let hashTimer;
+      let renderSequence = 0;
+
+      const readSourceFromHash = () => {
+        const hash = window.location.hash.slice(1);
+        if (!hash) {
+          return null;
+        }
+
+        const params = new URLSearchParams(hash);
+        return params.has("uml") ? params.get("uml") : null;
+      };
+
+      const updateUrlHash = () => {
+        const source = plantumlInput.value;
+        const url = new URL(window.location.href);
+
+        if (source) {
+          url.hash = new URLSearchParams({ uml: source }).toString();
+        } else {
+          url.hash = "";
+        }
+
+        window.history.replaceState(null, "", url);
+      };
+
+      plantumlInput.value = readSourceFromHash() ?? samplePlantUml;
+
+      const loadPlantUml = () => {
+        plantUmlModulePromise ||= import(plantUmlModuleUrl);
+        return plantUmlModulePromise;
+      };
+
+      const setBusy = (busy) => {
+        if (busy) {
+          status.textContent = "レンダリング中...";
+        }
+      };
+
+      const sourceLines = () => plantumlInput.value.split(/\r\n|\r|\n/);
+
+      const renderSvg = async () => {
+        const source = plantumlInput.value.trim();
+        const sequence = ++renderSequence;
+
+        if (!source) {
+          lastSvg = "";
+          preview.innerHTML = '<p class="placeholder">プレビューがここに表示されます</p>';
+          status.textContent = "";
+          return;
+        }
+
+        setBusy(true);
+
+        try {
+          const { renderToString } = await loadPlantUml();
+          const svg = await new Promise((resolve, reject) => {
+            renderToString(
+              sourceLines(),
+              resolve,
+              (message) => reject(new Error(message)),
+              { dark: darkMode.checked },
+            );
+          });
+
+          if (sequence !== renderSequence) {
+            return;
+          }
+
+          lastSvg = svg;
+          preview.innerHTML = svg;
+          status.textContent = "プレビューを更新しました";
+        } catch (error) {
+          if (sequence !== renderSequence) {
+            return;
+          }
+
+          lastSvg = "";
+          preview.innerHTML = "";
+          const errorElement = document.createElement("pre");
+          errorElement.className = "error";
+          errorElement.textContent = error.message;
+          preview.append(errorElement);
+          status.textContent = "レンダリングに失敗しました";
+        } finally {
+          if (sequence === renderSequence) {
+            setBusy(false);
+          }
+        }
+      };
+
+      const scheduleRender = () => {
+        window.clearTimeout(renderTimer);
+        window.clearTimeout(hashTimer);
+        renderTimer = window.setTimeout(renderSvg, 450);
+        hashTimer = window.setTimeout(updateUrlHash, 450);
+      };
+
+      plantumlInput.addEventListener("input", scheduleRender);
+      darkMode.addEventListener("change", renderSvg);
+
+      copySvgButton.addEventListener("click", async () => {
+        if (!lastSvg) {
+          status.textContent = "コピーする SVG がありません";
+          return;
+        }
+
+        try {
+          await navigator.clipboard.writeText(lastSvg);
+          status.textContent = "SVG をコピーしました";
+        } catch (error) {
+          status.textContent = `コピーに失敗しました: ${error.message}`;
+        }
+      });
+
+      copyUrlButton.addEventListener("click", async () => {
+        try {
+          updateUrlHash();
+          await navigator.clipboard.writeText(window.location.href);
+          status.textContent = "URL をコピーしました";
+        } catch (error) {
+          status.textContent = `URL のコピーに失敗しました: ${error.message}`;
+        }
+      });
+
+      downloadSvgButton.addEventListener("click", () => {
+        if (!lastSvg) {
+          status.textContent = "保存する SVG がありません";
+          return;
+        }
+
+        const blob = new Blob([lastSvg], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "plantuml.svg";
+        link.click();
+        URL.revokeObjectURL(url);
+        status.textContent = "SVG を保存しました";
+      });
+
+      sampleButton.addEventListener("click", () => {
+        plantumlInput.value = samplePlantUml;
+        updateUrlHash();
+        renderSvg();
+      });
+
+      clearButton.addEventListener("click", () => {
+        plantumlInput.value = "";
+        lastSvg = "";
+        updateUrlHash();
+        preview.innerHTML = '<p class="placeholder">プレビューがここに表示されます</p>';
+        status.textContent = "";
+      });
+
+      window.addEventListener("hashchange", () => {
+        const source = readSourceFromHash();
+        if (source === null || source === plantumlInput.value) {
+          return;
+        }
+
+        plantumlInput.value = source;
+        renderSvg();
+      });
+
+      renderSvg();
+    </script>
+  </body>
+</html>
