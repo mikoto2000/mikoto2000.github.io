@@ -430,9 +430,14 @@ nwdiag {
         archimate: {
           label: "Archimate 図",
           source: `@startuml
-archimate #Technology "Browser" as browser
-archimate #Application "PlantUML Preview Tool" as tool
-archimate #Data "SVG" as svg
+skinparam roundcorner 20
+skinparam rectangle {
+  Shadowing false
+}
+
+rectangle "Browser" as browser <<$archimate/technology-device>> #D9EAD3
+rectangle "PlantUML Preview Tool" as tool <<$archimate/application-component>> #DAE8FC
+rectangle "SVG" as svg <<$archimate/data-object>> #FFF2CC
 
 browser --> tool
 tool --> svg
