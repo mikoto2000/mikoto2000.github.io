@@ -170,8 +170,10 @@
 
         <div class="toolbar">
           <button id="copySvgButton" type="button">SVG をコピー</button>
+          <button id="copyPngButton" type="button">PNG をコピー</button>
           <button id="copyUrlButton" type="button">URL をコピー</button>
           <button id="downloadSvgButton" type="button">SVG を保存</button>
+          <button id="downloadPngButton" type="button">PNG を保存</button>
           <select id="sampleSelect" aria-label="サンプルを選択"></select>
           <button id="clearButton" type="button">クリア</button>
           <label class="toggle"><input id="darkMode" type="checkbox"> Dark</label>
@@ -189,8 +191,10 @@
       const plantumlInput = document.getElementById("plantumlInput");
       const preview = document.getElementById("preview");
       const copySvgButton = document.getElementById("copySvgButton");
+      const copyPngButton = document.getElementById("copyPngButton");
       const copyUrlButton = document.getElementById("copyUrlButton");
       const downloadSvgButton = document.getElementById("downloadSvgButton");
+      const downloadPngButton = document.getElementById("downloadPngButton");
       const sampleSelect = document.getElementById("sampleSelect");
       const clearButton = document.getElementById("clearButton");
       const darkMode = document.getElementById("darkMode");
@@ -559,6 +563,59 @@ stop
 
       const sourceLines = () => plantumlInput.value.split(/\r\n|\r|\n/);
 
+      const imageSizeFromSvg = (svg) => {
+        const svgElement = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
+        const width = Number.parseFloat(svgElement.getAttribute("width"));
+        const height = Number.parseFloat(svgElement.getAttribute("height"));
+
+        if (width > 0 && height > 0) {
+          return { width, height };
+        }
+
+        const viewBox = svgElement.getAttribute("viewBox")?.split(/\s+/).map(Number);
+        if (viewBox?.length === 4 && viewBox[2] > 0 && viewBox[3] > 0) {
+          return { width: viewBox[2], height: viewBox[3] };
+        }
+
+        return { width: 1200, height: 800 };
+      };
+
+      const svgToPngBlob = async (svg) => {
+        const { width, height } = imageSizeFromSvg(svg);
+        const image = new Image();
+        const svgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+
+        try {
+          await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = () => reject(new Error("SVG を PNG に変換できませんでした"));
+            image.src = svgUrl;
+          });
+
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.ceil(width);
+          canvas.height = Math.ceil(height);
+
+          const context = canvas.getContext("2d");
+          if (!context) {
+            throw new Error("Canvas を利用できません");
+          }
+
+          context.fillStyle = darkMode.checked ? "#000000" : "#ffffff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0);
+
+          return await new Promise((resolve, reject) => {
+            canvas.toBlob(
+              (blob) => blob ? resolve(blob) : reject(new Error("PNG の生成に失敗しました")),
+              "image/png",
+            );
+          });
+        } finally {
+          URL.revokeObjectURL(svgUrl);
+        }
+      };
+
       const renderSvg = async () => {
         const source = plantumlInput.value.trim();
         const sequence = ++renderSequence;
@@ -636,6 +693,26 @@ stop
         }
       });
 
+      copyPngButton.addEventListener("click", async () => {
+        if (!lastSvg) {
+          status.textContent = "コピーする PNG がありません";
+          return;
+        }
+
+        if (!window.ClipboardItem || !navigator.clipboard?.write) {
+          status.textContent = "このブラウザでは PNG コピーに対応していません";
+          return;
+        }
+
+        try {
+          const blob = await svgToPngBlob(lastSvg);
+          await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+          status.textContent = "PNG をコピーしました";
+        } catch (error) {
+          status.textContent = `PNG のコピーに失敗しました: ${error.message}`;
+        }
+      });
+
       copyUrlButton.addEventListener("click", async () => {
         try {
           updateUrlHash();
@@ -660,6 +737,26 @@ stop
         link.click();
         URL.revokeObjectURL(url);
         status.textContent = "SVG を保存しました";
+      });
+
+      downloadPngButton.addEventListener("click", async () => {
+        if (!lastSvg) {
+          status.textContent = "保存する PNG がありません";
+          return;
+        }
+
+        try {
+          const blob = await svgToPngBlob(lastSvg);
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = "plantuml.png";
+          link.click();
+          URL.revokeObjectURL(url);
+          status.textContent = "PNG を保存しました";
+        } catch (error) {
+          status.textContent = `PNG の保存に失敗しました: ${error.message}`;
+        }
       });
 
       sampleSelect.addEventListener("change", () => {
