@@ -45,6 +45,7 @@
 
       button,
       input,
+      select,
       textarea {
         font: inherit;
       }
@@ -65,6 +66,14 @@
       button:disabled {
         cursor: wait;
         opacity: 0.65;
+      }
+
+      select {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        min-height: 2.4em;
+        padding: 0.35em 0.6em;
       }
 
       textarea {
@@ -163,7 +172,7 @@
           <button id="copySvgButton" type="button">SVG をコピー</button>
           <button id="copyUrlButton" type="button">URL をコピー</button>
           <button id="downloadSvgButton" type="button">SVG を保存</button>
-          <button id="sampleButton" type="button">サンプル</button>
+          <select id="sampleSelect" aria-label="サンプルを選択"></select>
           <button id="clearButton" type="button">クリア</button>
           <label class="toggle"><input id="darkMode" type="checkbox"> Dark</label>
         </div>
@@ -182,12 +191,15 @@
       const copySvgButton = document.getElementById("copySvgButton");
       const copyUrlButton = document.getElementById("copyUrlButton");
       const downloadSvgButton = document.getElementById("downloadSvgButton");
-      const sampleButton = document.getElementById("sampleButton");
+      const sampleSelect = document.getElementById("sampleSelect");
       const clearButton = document.getElementById("clearButton");
       const darkMode = document.getElementById("darkMode");
       const status = document.getElementById("status");
 
-      const samplePlantUml = `@startuml
+      const samples = {
+        sequence: {
+          label: "シーケンス図",
+          source: `@startuml
 title PlantUML プレビュー
 
 actor User
@@ -198,7 +210,344 @@ User -> Browser : PlantUML を入力
 Browser -> PlantUML : renderToString(lines)
 PlantUML --> Browser : SVG
 Browser --> User : プレビュー表示
-@enduml`;
+@enduml`,
+        },
+        usecase: {
+          label: "ユースケース図",
+          source: `@startuml
+left to right direction
+actor User
+rectangle Tool {
+  usecase "PlantUML を入力" as Input
+  usecase "SVG を確認" as Preview
+  usecase "URL を共有" as Share
+}
+User --> Input
+User --> Preview
+User --> Share
+@enduml`,
+        },
+        class: {
+          label: "クラス図",
+          source: `@startuml
+class Diagram {
+  +title: String
+  +source: String
+  +render(): Svg
+}
+
+class Renderer {
+  +renderToString(lines): Svg
+}
+
+Diagram --> Renderer
+@enduml`,
+        },
+        object: {
+          label: "オブジェクト図",
+          source: `@startuml
+object editor {
+  value = "@startuml..."
+}
+
+object preview {
+  format = "svg"
+}
+
+editor --> preview : render
+@enduml`,
+        },
+        activity: {
+          label: "アクティビティ図",
+          source: `@startuml
+start
+:PlantUML を入力;
+if (構文は有効?) then (yes)
+  :SVG を表示;
+else (no)
+  :エラーを表示;
+endif
+stop
+@enduml`,
+        },
+        component: {
+          label: "コンポーネント図",
+          source: `@startuml
+package Browser {
+  [Editor]
+  [Preview]
+}
+
+[Editor] --> [PlantUML Core]
+[PlantUML Core] --> [Preview]
+@enduml`,
+        },
+        deployment: {
+          label: "配置図",
+          source: `@startuml
+node "GitHub Pages" {
+  artifact "plantuml.html"
+}
+
+node "Browser" {
+  component "PlantUML Core"
+  component "SVG Preview"
+}
+
+"plantuml.html" --> "PlantUML Core"
+@enduml`,
+        },
+        state: {
+          label: "状態遷移図",
+          source: `@startuml
+[*] --> Editing
+Editing --> Rendering : input
+Rendering --> Previewed : success
+Rendering --> Error : failure
+Error --> Editing : fix
+Previewed --> Editing : input
+@enduml`,
+        },
+        timing: {
+          label: "タイミング図",
+          source: `@startuml
+robust "Editor" as E
+robust "Preview" as P
+
+@0
+E is Idle
+P is Empty
+
+@100
+E is Typing
+P is Waiting
+
+@200
+E is Idle
+P is Rendering
+
+@300
+P is Updated
+@enduml`,
+        },
+        gantt: {
+          label: "ガントチャート",
+          source: `@startgantt
+[入力 UI] lasts 2 days
+[SVG プレビュー] lasts 3 days
+[URL 共有] lasts 1 day
+[SVG プレビュー] starts at [入力 UI]'s end
+[URL 共有] starts at [SVG プレビュー]'s end
+@endgantt`,
+        },
+        mindmap: {
+          label: "マインドマップ",
+          source: `@startmindmap
+* PlantUML ツール
+** 入力
+*** テキスト編集
+*** サンプル選択
+** プレビュー
+*** SVG
+*** Dark
+** 共有
+*** URL
+*** SVG コピー
+@endmindmap`,
+        },
+        wbs: {
+          label: "WBS",
+          source: `@startwbs
+* PlantUML SVG プレビュー
+** 入力欄
+** レンダリング
+*** 成功表示
+*** エラー表示
+** エクスポート
+*** SVG コピー
+*** SVG 保存
+** 共有 URL
+@endwbs`,
+        },
+        json: {
+          label: "JSON 図",
+          source: `@startjson
+{
+  "tool": "PlantUML SVG Preview",
+  "features": [
+    "render",
+    "copy svg",
+    "share url"
+  ],
+  "format": "svg"
+}
+@endjson`,
+        },
+        yaml: {
+          label: "YAML 図",
+          source: `@startyaml
+tool: PlantUML SVG Preview
+features:
+  - render
+  - copy svg
+  - share url
+format: svg
+@endyaml`,
+        },
+        nwdiag: {
+          label: "ネットワーク図",
+          source: `@startnwdiag
+nwdiag {
+  network browser {
+    address = "local"
+    editor
+    preview
+  }
+  network cdn {
+    address = "unpkg.com"
+    plantuml_core
+  }
+  editor -- plantuml_core
+  plantuml_core -- preview
+}
+@endnwdiag`,
+        },
+        salt: {
+          label: "UI ワイヤーフレーム",
+          source: `@startsalt
+{
+  {T
+    + PlantUML 入力
+    + SVG プレビュー
+  }
+  {
+    "source text" | [SVG をコピー]
+    ""            | [URL をコピー]
+  }
+}
+@endsalt`,
+        },
+        archimate: {
+          label: "Archimate 図",
+          source: `@startuml
+archimate #Technology "Browser" as browser
+archimate #Application "PlantUML Preview Tool" as tool
+archimate #Data "SVG" as svg
+
+browser --> tool
+tool --> svg
+@enduml`,
+        },
+        regex: {
+          label: "正規表現図",
+          source: `@startregex
+title URL hash
+#uml=[^#]+
+@endregex`,
+        },
+        ebnf: {
+          label: "EBNF 図",
+          source: `@startebnf
+title EBNF
+identifier = letter , { letter | digit | "_" };
+letter = "A" | "B" | "C" | "a" | "b" | "c";
+digit = "0" | "1" | "2";
+@endebnf`,
+        },
+        math: {
+          label: "数式図",
+          source: `@startmath
+f(t)=(a_0)/2 + sum_(n=1)^oo a_n cos((n pi t)/L)
+@endmath`,
+        },
+        ie: {
+          label: "IE ER 図",
+          source: `@startuml
+entity User {
+  * id : INTEGER
+  --
+  name : STRING
+}
+
+entity Post {
+  * id : INTEGER
+  --
+  title : STRING
+  user_id : INTEGER
+}
+
+User ||--o{ Post
+@enduml`,
+        },
+        chen: {
+          label: "Chen ER 図",
+          source: `@startchen
+left to right direction
+entity User {
+  id <<key>>
+  name
+}
+
+entity Post {
+  id <<key>>
+  title
+}
+
+relationship Writes {
+}
+
+User -1- Writes
+Writes -N- Post
+@endchen`,
+        },
+        chart: {
+          label: "チャート図",
+          source: `@startchart
+h-axis [Q1, Q2, Q3, Q4]
+v-axis "Revenue" 0 --> 100
+bar "Sales" [45, 62, 58, 70] #3498db
+line "Target" [50, 55, 60, 65] #e67e22
+legend right
+@endchart`,
+        },
+        files: {
+          label: "ファイルツリー図",
+          source: `@startfiles
+/index.html
+/plantuml.html
+/base.css
+/tools/markdown.md
+/tools/plantuml/sample.puml
+@endfiles`,
+        },
+        sdl: {
+          label: "SDL 図",
+          source: `@startuml
+start
+:input; <<input>>
+:procedure; <<procedure>>
+:output; <<output>>
+if (ok?) then (yes)
+  :save; <<save>>
+else (no)
+  :load; <<load>>
+endif
+stop
+@enduml`,
+        },
+        dot: {
+          label: "DOT 図",
+          source: `@startdot
+digraph G {
+  node [style=rounded]
+  input [shape=box]
+  render [shape=diamond]
+  preview [shape=box]
+  input -> render -> preview
+}
+@enddot`,
+        },
+      };
 
       let plantUmlModulePromise;
       let lastSvg = "";
@@ -229,7 +578,32 @@ Browser --> User : プレビュー表示
         window.history.replaceState(null, "", url);
       };
 
-      plantumlInput.value = readSourceFromHash() ?? samplePlantUml;
+      const loadSample = (sampleKey) => {
+        plantumlInput.value = samples[sampleKey].source;
+        updateUrlHash();
+        renderSvg();
+      };
+
+      const placeholderOption = document.createElement("option");
+      placeholderOption.value = "";
+      placeholderOption.textContent = "サンプルを選択";
+      sampleSelect.append(placeholderOption);
+
+      Object.entries(samples).forEach(([key, sample]) => {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = sample.label;
+        sampleSelect.append(option);
+      });
+
+      const initialSource = readSourceFromHash();
+      if (initialSource === null) {
+        plantumlInput.value = samples.sequence.source;
+        sampleSelect.value = "sequence";
+      } else {
+        plantumlInput.value = initialSource;
+        sampleSelect.value = "";
+      }
 
       const loadPlantUml = () => {
         plantUmlModulePromise ||= import(plantUmlModuleUrl);
@@ -301,7 +675,10 @@ Browser --> User : プレビュー表示
         hashTimer = window.setTimeout(updateUrlHash, 450);
       };
 
-      plantumlInput.addEventListener("input", scheduleRender);
+      plantumlInput.addEventListener("input", () => {
+        sampleSelect.value = "";
+        scheduleRender();
+      });
       darkMode.addEventListener("change", renderSvg);
 
       copySvgButton.addEventListener("click", async () => {
@@ -344,15 +721,16 @@ Browser --> User : プレビュー表示
         status.textContent = "SVG を保存しました";
       });
 
-      sampleButton.addEventListener("click", () => {
-        plantumlInput.value = samplePlantUml;
-        updateUrlHash();
-        renderSvg();
+      sampleSelect.addEventListener("change", () => {
+        if (sampleSelect.value) {
+          loadSample(sampleSelect.value);
+        }
       });
 
       clearButton.addEventListener("click", () => {
         plantumlInput.value = "";
         lastSvg = "";
+        sampleSelect.value = "";
         updateUrlHash();
         preview.innerHTML = '<p class="placeholder">プレビューがここに表示されます</p>';
         status.textContent = "";
@@ -365,6 +743,7 @@ Browser --> User : プレビュー表示
         }
 
         plantumlInput.value = source;
+        sampleSelect.value = "";
         renderSvg();
       });
 
