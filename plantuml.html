@@ -4,7 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>PlantUML SVG プレビューツール</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/dialog/dialog.css">
     <script src="https://unpkg.com/@plantuml/core@1.2026.6/viz-global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/dialog/dialog.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/search/searchcursor.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/keymap/vim.js"></script>
     <style>
       :root {
         color-scheme: light;
@@ -85,6 +91,19 @@
         padding: 0.75em;
         resize: vertical;
         width: 100%;
+      }
+
+      .CodeMirror {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        height: 31em;
+        line-height: 1.45;
+      }
+
+      .CodeMirror-dialog {
+        border-bottom: 1px solid var(--border);
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
       }
 
       .layout {
@@ -176,6 +195,7 @@
           <button id="downloadPngButton" type="button">PNG を保存</button>
           <select id="sampleSelect" aria-label="サンプルを選択"></select>
           <button id="clearButton" type="button">クリア</button>
+          <label class="toggle"><input id="vimMode" type="checkbox"> Vim</label>
           <label class="toggle"><input id="darkMode" type="checkbox"> Dark</label>
         </div>
 
@@ -197,6 +217,7 @@
       const downloadPngButton = document.getElementById("downloadPngButton");
       const sampleSelect = document.getElementById("sampleSelect");
       const clearButton = document.getElementById("clearButton");
+      const vimMode = document.getElementById("vimMode");
       const darkMode = document.getElementById("darkMode");
       const status = document.getElementById("status");
 
@@ -499,6 +520,25 @@ stop
       let renderTimer;
       let hashTimer;
       let renderSequence = 0;
+      let plantumlEditor;
+      let suppressSourceChange = false;
+
+      const hasVimKeyMap = () => Boolean(window.CodeMirror?.keyMap?.vim);
+
+      const getPlantUmlSource = () => plantumlEditor ? plantumlEditor.getValue() : plantumlInput.value;
+
+      const setPlantUmlSource = (source, options = {}) => {
+        if (plantumlEditor) {
+          suppressSourceChange = Boolean(options.suppressChange);
+          try {
+            plantumlEditor.setValue(source);
+          } finally {
+            suppressSourceChange = false;
+          }
+        } else {
+          plantumlInput.value = source;
+        }
+      };
 
       const readSourceFromHash = () => {
         const hash = window.location.hash.slice(1);
@@ -511,7 +551,7 @@ stop
       };
 
       const updateUrlHash = () => {
-        const source = plantumlInput.value;
+        const source = getPlantUmlSource();
         const url = new URL(window.location.href);
 
         if (source) {
@@ -524,7 +564,7 @@ stop
       };
 
       const loadSample = (sampleKey) => {
-        plantumlInput.value = samples[sampleKey].source;
+        setPlantUmlSource(samples[sampleKey].source, { suppressChange: true });
         updateUrlHash();
         renderSvg();
       };
@@ -550,6 +590,24 @@ stop
         sampleSelect.value = "";
       }
 
+      if (window.CodeMirror) {
+        const vimAvailable = hasVimKeyMap();
+        vimMode.checked = vimAvailable && vimMode.checked;
+        vimMode.disabled = !vimAvailable;
+
+        plantumlEditor = window.CodeMirror.fromTextArea(plantumlInput, {
+          indentUnit: 2,
+          keyMap: vimMode.checked ? "vim" : "default",
+          lineNumbers: true,
+          lineWrapping: true,
+          mode: "text/plain",
+          tabSize: 2,
+        });
+      } else {
+        vimMode.checked = false;
+        vimMode.disabled = true;
+      }
+
       const loadPlantUml = () => {
         plantUmlModulePromise ||= import(plantUmlModuleUrl);
         return plantUmlModulePromise;
@@ -561,7 +619,7 @@ stop
         }
       };
 
-      const sourceLines = () => plantumlInput.value.split(/\r\n|\r|\n/);
+      const sourceLines = () => getPlantUmlSource().split(/\r\n|\r|\n/);
 
       const imageSizeFromSvg = (svg) => {
         const svgElement = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
@@ -617,7 +675,7 @@ stop
       };
 
       const renderSvg = async () => {
-        const source = plantumlInput.value.trim();
+        const source = getPlantUmlSource().trim();
         const sequence = ++renderSequence;
 
         if (!source) {
@@ -673,9 +731,28 @@ stop
         hashTimer = window.setTimeout(updateUrlHash, 450);
       };
 
-      plantumlInput.addEventListener("input", () => {
+      const handleSourceChange = () => {
+        if (suppressSourceChange) {
+          return;
+        }
+
         sampleSelect.value = "";
         scheduleRender();
+      };
+
+      if (plantumlEditor) {
+        plantumlEditor.on("change", handleSourceChange);
+      } else {
+        plantumlInput.addEventListener("input", handleSourceChange);
+      }
+      vimMode.addEventListener("change", () => {
+        if (!plantumlEditor) {
+          return;
+        }
+
+        plantumlEditor.setOption("keyMap", vimMode.checked ? "vim" : "default");
+        plantumlEditor.focus();
+        status.textContent = vimMode.checked ? "Vim モードを有効にしました" : "Vim モードを無効にしました";
       });
       darkMode.addEventListener("change", renderSvg);
 
@@ -766,7 +843,7 @@ stop
       });
 
       clearButton.addEventListener("click", () => {
-        plantumlInput.value = "";
+        setPlantUmlSource("", { suppressChange: true });
         lastSvg = "";
         sampleSelect.value = "";
         updateUrlHash();
@@ -776,11 +853,11 @@ stop
 
       window.addEventListener("hashchange", () => {
         const source = readSourceFromHash();
-        if (source === null || source === plantumlInput.value) {
+        if (source === null || source === getPlantUmlSource()) {
           return;
         }
 
-        plantumlInput.value = source;
+        setPlantUmlSource(source, { suppressChange: true });
         sampleSelect.value = "";
         renderSvg();
       });
