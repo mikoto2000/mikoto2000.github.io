@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mermaid SVG プレビューツール</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/dialog/dialog.css">
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/dialog/dialog.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/search/searchcursor.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/keymap/vim.js"></script>
+    <style>
+      :root { color-scheme: light; --accent: #0069b4; --border: #c9d2dc; --danger: #b42318; --muted: #5b6672; --soft: #f3f6f8; --surface: #fff; --text: #252a31; }
+      * { box-sizing: border-box; }
+      body { background: #f7f8fa; color: var(--text); font-family: sans-serif; line-height: 1.6; margin: 2em auto; max-width: 1180px; padding: 0 1em; }
+      h1 { color: var(--accent); font-size: 1.9rem; line-height: 1.25; margin-bottom: .4em; }
+      h2 { font-size: 1.2rem; margin-top: 0; }
+      button, input, select, textarea { font: inherit; }
+      button { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; min-height: 2.4em; padding: .35em .8em; }
+      button:hover { border-color: var(--accent); }
+      button:disabled { cursor: wait; opacity: .65; }
+      select { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; min-height: 2.4em; padding: .35em .6em; }
+      textarea { border: 1px solid var(--border); border-radius: 6px; display: block; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; min-height: 31em; padding: .75em; resize: vertical; width: 100%; }
+      .CodeMirror { border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; height: 31em; line-height: 1.45; }
+      .CodeMirror-dialog { border-bottom: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+      .layout { display: grid; gap: 1.5em; grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr); }
+      .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1em; }
+      .toolbar { align-items: center; display: flex; flex-wrap: wrap; gap: .75em; margin: 1em 0; }
+      .toggle { align-items: center; display: inline-flex; gap: .35em; }
+      .preview { align-items: flex-start; background: var(--soft); border: 1px solid var(--border); border-radius: 6px; display: flex; justify-content: center; min-height: 31em; overflow: auto; padding: 1em; }
+      .preview:has(svg) { cursor: zoom-in; }
+      .preview svg { height: auto; max-width: 100%; }
+      .preview-modal { background: #fff; border: 0; height: 100vh; margin: 0; max-height: none; max-width: none; padding: 3.5rem 1.5rem 1.5rem; width: 100vw; }
+      .preview-modal::backdrop { background: #fff; }
+      .preview-modal__close { align-items: center; background: #fff; border-color: #7b8794; border-radius: 50%; display: flex; font-size: 1.7rem; height: 2.5rem; justify-content: center; min-height: 0; padding: 0; position: fixed; right: 1rem; top: 1rem; width: 2.5rem; z-index: 1; }
+      .preview-modal__content { align-items: center; display: flex; justify-content: center; min-height: 100%; overflow: auto; }
+      .preview-modal__content svg { height: auto; max-height: calc(100vh - 5rem); max-width: 100%; }
+      .placeholder, .status { color: var(--muted); }
+      .error { color: var(--danger); white-space: pre-wrap; }
+      .status { min-height: 1.6em; }
+      @media (max-width: 860px) { body { margin-top: 1em; } .layout { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <h1>Mermaid SVG プレビュー</h1>
+    <main class="layout">
+      <section class="panel" aria-labelledby="inputTitle">
+        <h2 id="inputTitle">Mermaid 入力</h2>
+        <textarea id="mermaidInput" spellcheck="false" aria-label="Mermaid 入力"></textarea>
+      </section>
+      <section class="panel" aria-labelledby="previewTitle">
+        <h2 id="previewTitle">SVG プレビュー</h2>
+        <div class="toolbar">
+          <button id="copySvgButton" type="button">SVG をコピー</button>
+          <button id="copyPngButton" type="button">PNG をコピー</button>
+          <button id="copyUrlButton" type="button">URL をコピー</button>
+          <button id="downloadSvgButton" type="button">SVG を保存</button>
+          <button id="downloadPngButton" type="button">PNG を保存</button>
+          <select id="sampleSelect" aria-label="サンプルを選択"></select>
+          <button id="clearButton" type="button">クリア</button>
+          <label class="toggle"><input id="vimMode" type="checkbox"> Vim</label>
+          <label class="toggle"><input id="darkMode" type="checkbox"> Dark</label>
+        </div>
+        <div id="preview" class="preview" aria-live="polite"><p class="placeholder">プレビューがここに表示されます</p></div>
+        <p id="status" class="status" aria-live="polite"></p>
+      </section>
+    </main>
+    <dialog id="previewModal" class="preview-modal" aria-label="SVG プレビューの拡大表示">
+      <button id="closePreviewButton" class="preview-modal__close" type="button" aria-label="拡大表示を閉じる">&times;</button>
+      <div id="previewModalContent" class="preview-modal__content"></div>
+    </dialog>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+      const input = document.getElementById("mermaidInput");
+      const preview = document.getElementById("preview");
+      const status = document.getElementById("status");
+      const sampleSelect = document.getElementById("sampleSelect");
+      const vimMode = document.getElementById("vimMode");
+      const darkMode = document.getElementById("darkMode");
+      const modal = document.getElementById("previewModal");
+      const modalContent = document.getElementById("previewModalContent");
+
+      const samples = {
+        flowchart: { label: "フローチャート", source: `flowchart TD
+  A[Mermaid を入力] --> B{構文は有効?}
+  B -- Yes --> C[SVG を表示]
+  B -- No --> D[エラーを表示]
+  C --> E[コピー・保存・共有]` },
+        sequence: { label: "シーケンス図", source: `sequenceDiagram
+  actor User
+  participant Browser
+  participant Mermaid
+  User->>Browser: Mermaid を入力
+  Browser->>Mermaid: render(source)
+  Mermaid-->>Browser: SVG
+  Browser-->>User: プレビュー表示` },
+        class: { label: "クラス図", source: `classDiagram
+  class Diagram {
+    +String title
+    +String source
+    +render() SVG
+  }
+  class Renderer {
+    +render(source) SVG
+  }
+  Diagram --> Renderer` },
+        state: { label: "状態遷移図", source: `stateDiagram-v2
+  [*] --> Editing
+  Editing --> Rendering: input
+  Rendering --> Previewed: success
+  Rendering --> Error: failure
+  Error --> Editing: fix
+  Previewed --> Editing: input` },
+        er: { label: "ER 図", source: `erDiagram
+  USER ||--o{ POST : writes
+  USER { int id PK
+    string name
+  }
+  POST { int id PK
+    string title
+    int user_id FK
+  }` },
+        gantt: { label: "ガントチャート", source: `gantt
+  title Mermaid プレビューツール
+  dateFormat YYYY-MM-DD
+  section UI
+  入力 UI :a1, 2026-08-25, 2d
+  SVG プレビュー :after a1, 3d
+  URL 共有 :1d` },
+        pie: { label: "円グラフ", source: `pie showData
+  title 機能の構成
+  "編集" : 40
+  "プレビュー" : 35
+  "共有" : 25` },
+        mindmap: { label: "マインドマップ", source: `mindmap
+  root((Mermaid ツール))
+    入力
+      テキスト編集
+      サンプル選択
+    プレビュー
+      SVG
+      Dark
+    共有
+      URL
+      SVG コピー` },
+        journey: { label: "ユーザージャーニー", source: `journey
+  title Mermaid 図を作る
+  section 編集
+    ソースを入力: 5: User
+    サンプルを選択: 4: User
+  section 確認
+    SVG を見る: 5: User
+    ファイルを保存: 4: User` },
+        gitgraph: { label: "Git グラフ", source: `gitGraph
+  commit id: "開始"
+  branch feature
+  checkout feature
+  commit id: "Mermaid 対応"
+  checkout main
+  merge feature
+  commit id: "公開"` },
+      };
+
+      let editor;
+      let lastSvg = "";
+      let renderTimer;
+      let hashTimer;
+      let renderSequence = 0;
+      let suppressChange = false;
+
+      const getSource = () => editor ? editor.getValue() : input.value;
+      const setSource = (source, suppress = false) => {
+        if (editor) {
+          suppressChange = suppress;
+          try { editor.setValue(source); } finally { suppressChange = false; }
+        } else input.value = source;
+      };
+      const readHash = () => {
+        const hash = location.hash.slice(1);
+        if (!hash) return null;
+        const params = new URLSearchParams(hash);
+        return params.has("mermaid") ? params.get("mermaid") : null;
+      };
+      const updateHash = () => {
+        const url = new URL(location.href);
+        const source = getSource();
+        url.hash = source ? new URLSearchParams({ mermaid: source }).toString() : "";
+        history.replaceState(null, "", url);
+      };
+
+      sampleSelect.append(new Option("サンプルを選択", ""));
+      Object.entries(samples).forEach(([key, sample]) => sampleSelect.append(new Option(sample.label, key)));
+      const initialSource = readHash();
+      input.value = initialSource === null ? samples.flowchart.source : initialSource;
+      sampleSelect.value = initialSource === null ? "flowchart" : "";
+
+      if (window.CodeMirror) {
+        const vimAvailable = Boolean(window.CodeMirror.keyMap?.vim);
+        vimMode.disabled = !vimAvailable;
+        editor = window.CodeMirror.fromTextArea(input, { indentUnit: 2, keyMap: "default", lineNumbers: true, lineWrapping: true, mode: "text/plain", tabSize: 2 });
+      } else vimMode.disabled = true;
+
+      const imageSize = (svg) => {
+        const element = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
+        const viewBox = element.getAttribute("viewBox")?.split(/\s+/).map(Number);
+        if (viewBox?.length === 4) return { width: viewBox[2], height: viewBox[3] };
+        return { width: Number.parseFloat(element.getAttribute("width")) || 1200, height: Number.parseFloat(element.getAttribute("height")) || 800 };
+      };
+      const toPng = async (svg) => {
+        const { width, height } = imageSize(svg);
+        const image = new Image();
+        const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+        try {
+          await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error("SVG を PNG に変換できませんでした")); image.src = url; });
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.ceil(width); canvas.height = Math.ceil(height);
+          const context = canvas.getContext("2d");
+          context.fillStyle = darkMode.checked ? "#1f2020" : "#fff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0);
+          return await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("PNG の生成に失敗しました")), "image/png"));
+        } finally { URL.revokeObjectURL(url); }
+      };
+
+      const renderSvg = async () => {
+        const source = getSource().trim();
+        const sequence = ++renderSequence;
+        if (!source) { lastSvg = ""; preview.innerHTML = '<p class="placeholder">プレビューがここに表示されます</p>'; status.textContent = ""; return; }
+        status.textContent = "レンダリング中...";
+        try {
+          mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: darkMode.checked ? "dark" : "default" });
+          const { svg } = await mermaid.render(`mermaid-preview-${sequence}`, source);
+          if (sequence !== renderSequence) return;
+          lastSvg = svg; preview.innerHTML = svg; status.textContent = "プレビューを更新しました";
+        } catch (error) {
+          if (sequence !== renderSequence) return;
+          lastSvg = ""; preview.innerHTML = "";
+          const element = document.createElement("pre"); element.className = "error"; element.textContent = error.message; preview.append(element);
+          status.textContent = "レンダリングに失敗しました";
+        }
+      };
+      const scheduleRender = () => {
+        clearTimeout(renderTimer); clearTimeout(hashTimer);
+        renderTimer = setTimeout(renderSvg, 450); hashTimer = setTimeout(updateHash, 450);
+      };
+      const sourceChanged = () => { if (!suppressChange) { sampleSelect.value = ""; scheduleRender(); } };
+      editor ? editor.on("change", sourceChanged) : input.addEventListener("input", sourceChanged);
+
+      vimMode.addEventListener("change", () => { if (editor) { editor.setOption("keyMap", vimMode.checked ? "vim" : "default"); editor.focus(); status.textContent = `Vim モードを${vimMode.checked ? "有効" : "無効"}にしました`; } });
+      darkMode.addEventListener("change", renderSvg);
+      sampleSelect.addEventListener("change", () => { if (sampleSelect.value) { setSource(samples[sampleSelect.value].source, true); updateHash(); renderSvg(); } });
+      document.getElementById("clearButton").addEventListener("click", () => { setSource("", true); lastSvg = ""; sampleSelect.value = ""; updateHash(); preview.innerHTML = '<p class="placeholder">プレビューがここに表示されます</p>'; status.textContent = ""; });
+
+      preview.addEventListener("click", () => { if (lastSvg) { modalContent.innerHTML = lastSvg; modal.showModal(); document.getElementById("closePreviewButton").focus(); } });
+      document.getElementById("closePreviewButton").addEventListener("click", () => modal.close());
+      modal.addEventListener("close", () => { modalContent.innerHTML = ""; });
+
+      document.getElementById("copySvgButton").addEventListener("click", async () => {
+        if (!lastSvg) return void (status.textContent = "コピーする SVG がありません");
+        try { await navigator.clipboard.writeText(lastSvg); status.textContent = "SVG をコピーしました"; } catch (error) { status.textContent = `コピーに失敗しました: ${error.message}`; }
+      });
+      document.getElementById("copyPngButton").addEventListener("click", async () => {
+        if (!lastSvg) return void (status.textContent = "コピーする PNG がありません");
+        if (!window.ClipboardItem || !navigator.clipboard?.write) return void (status.textContent = "このブラウザでは PNG コピーに対応していません");
+        try { const blob = await toPng(lastSvg); await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]); status.textContent = "PNG をコピーしました"; } catch (error) { status.textContent = `PNG のコピーに失敗しました: ${error.message}`; }
+      });
+      document.getElementById("copyUrlButton").addEventListener("click", async () => {
+        try { updateHash(); await navigator.clipboard.writeText(location.href); status.textContent = "URL をコピーしました"; } catch (error) { status.textContent = `URL のコピーに失敗しました: ${error.message}`; }
+      });
+      const download = (blob, filename) => { const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url); };
+      document.getElementById("downloadSvgButton").addEventListener("click", () => { if (!lastSvg) return void (status.textContent = "保存する SVG がありません"); download(new Blob([lastSvg], { type: "image/svg+xml" }), "mermaid.svg"); status.textContent = "SVG を保存しました"; });
+      document.getElementById("downloadPngButton").addEventListener("click", async () => { if (!lastSvg) return void (status.textContent = "保存する PNG がありません"); try { download(await toPng(lastSvg), "mermaid.png"); status.textContent = "PNG を保存しました"; } catch (error) { status.textContent = `PNG の保存に失敗しました: ${error.message}`; } });
+      window.addEventListener("hashchange", () => { const source = readHash(); if (source !== null && source !== getSource()) { setSource(source, true); sampleSelect.value = ""; renderSvg(); } });
+      renderSvg();
+    </script>
+  </body>
+</html>
