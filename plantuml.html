@@ -145,8 +145,59 @@
         padding: 1em;
       }
 
+      .preview:has(svg) {
+        cursor: zoom-in;
+      }
+
       .preview svg {
         height: auto;
+        max-width: 100%;
+      }
+
+      .preview-modal {
+        background: #ffffff;
+        border: 0;
+        height: 100vh;
+        margin: 0;
+        max-height: none;
+        max-width: none;
+        padding: 3.5rem 1.5rem 1.5rem;
+        width: 100vw;
+      }
+
+      .preview-modal::backdrop {
+        background: #ffffff;
+      }
+
+      .preview-modal__close {
+        align-items: center;
+        background: #ffffff;
+        border-color: #7b8794;
+        border-radius: 50%;
+        display: flex;
+        font-size: 1.7rem;
+        height: 2.5rem;
+        justify-content: center;
+        min-height: 0;
+        padding: 0;
+        position: fixed;
+        right: 1rem;
+        top: 1rem;
+        width: 2.5rem;
+        z-index: 1;
+      }
+
+      .preview-modal__content {
+        align-items: center;
+        display: flex;
+        justify-content: center;
+        min-height: 100%;
+        overflow: auto;
+      }
+
+      .preview-modal__content svg {
+        height: auto;
+        max-height: calc(100vh - 5rem);
         max-width: 100%;
       }
 
@@ -206,6 +257,11 @@
       </section>
     </main>
 
+    <dialog id="previewModal" class="preview-modal" aria-label="SVG プレビューの拡大表示">
+      <button id="closePreviewButton" class="preview-modal__close" type="button" aria-label="拡大表示を閉じる">&times;</button>
+      <div id="previewModalContent" class="preview-modal__content"></div>
+    </dialog>
+
     <script type="module">
       const plantUmlModuleUrl = "https://unpkg.com/@plantuml/core@1.2026.6/plantuml.js";
       const plantumlInput = document.getElementById("plantumlInput");
@@ -220,6 +276,9 @@
       const vimMode = document.getElementById("vimMode");
       const darkMode = document.getElementById("darkMode");
       const status = document.getElementById("status");
+      const previewModal = document.getElementById("previewModal");
+      const previewModalContent = document.getElementById("previewModalContent");
+      const closePreviewButton = document.getElementById("closePreviewButton");
 
       const samples = {
         sequence: {
@@ -755,6 +814,27 @@ stop
         status.textContent = vimMode.checked ? "Vim モードを有効にしました" : "Vim モードを無効にしました";
       });
       darkMode.addEventListener("change", renderSvg);
+
+      const closeExpandedPreview = () => {
+        if (previewModal.open) {
+          previewModal.close();
+        }
+      };
+
+      preview.addEventListener("click", () => {
+        if (!lastSvg) {
+          return;
+        }
+
+        previewModalContent.innerHTML = lastSvg;
+        previewModal.showModal();
+        closePreviewButton.focus();
+      });
+
+      closePreviewButton.addEventListener("click", closeExpandedPreview);
+      previewModal.addEventListener("close", () => {
+        previewModalContent.innerHTML = "";
+      });
 
       copySvgButton.addEventListener("click", async () => {
         if (!lastSvg) {
