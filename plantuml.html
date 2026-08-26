@@ -264,7 +264,7 @@
     </dialog>
 
     <script type="module">
-      const plantUmlModuleUrl = "https://unpkg.com/@plantuml/core@1.2026.6/plantuml.js";
+      const plantUmlModuleUrl = "./plantuml.js";
       const plantumlInput = document.getElementById("plantumlInput");
       const preview = document.getElementById("preview");
       const copySvgButton = document.getElementById("copySvgButton");
@@ -292,7 +292,7 @@ participant Browser
 participant "plantuml.js" as PlantUML
 
 User -> Browser : PlantUML を入力
-Browser -> PlantUML : renderToString(lines)
+Browser -> PlantUML : renderToString(lines, () => {}, () => {}, { maxSvgSize: 8192})
 PlantUML --> Browser : SVG
 Browser --> User : プレビュー表示
 @enduml`,
@@ -754,7 +754,7 @@ stop
               sourceLines(),
               resolve,
               (message) => reject(new Error(message)),
-              { dark: darkMode.checked },
+              { dark: darkMode.checked, maxSvgSize: 8192 },
             );
           });
 
