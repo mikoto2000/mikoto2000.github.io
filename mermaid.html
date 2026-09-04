@@ -34,8 +34,9 @@
       .preview-modal { background: #fff; border: 0; height: 100vh; margin: 0; max-height: none; max-width: none; padding: 3.5rem 1.5rem 1.5rem; width: 100vw; }
       .preview-modal::backdrop { background: #fff; }
       .preview-modal__close { align-items: center; background: #fff; border-color: #7b8794; border-radius: 50%; display: flex; font-size: 1.7rem; height: 2.5rem; justify-content: center; min-height: 0; padding: 0; position: fixed; right: 1rem; top: 1rem; width: 2.5rem; z-index: 1; }
-      .preview-modal__content { align-items: center; display: flex; justify-content: center; min-height: 100%; overflow: auto; }
-      .preview-modal__content svg { height: auto; max-height: calc(100vh - 5rem); max-width: 100%; }
+      .preview-modal__content { align-items: center; cursor: grab; display: flex; justify-content: center; min-height: 100%; overflow: hidden; user-select: none; }
+      .preview-modal__content.is-dragging { cursor: grabbing; }
+      .preview-modal__content svg { height: auto; max-height: calc(100vh - 5rem); max-width: 100%; transform-origin: center center; will-change: transform; }
       .placeholder, .status { color: var(--muted); }
       .error { color: var(--danger); white-space: pre-wrap; }
       .status { min-height: 1.6em; }
@@ -171,6 +172,7 @@
       let hashTimer;
       let renderSequence = 0;
       let suppressChange = false;
+      const expandedPreviewState = { dragging: false, lastX: 0, lastY: 0, offsetX: 0, offsetY: 0, scale: 1 };
 
       const getSource = () => editor ? editor.getValue() : input.value;
       const setSource = (source, suppress = false) => {
@@ -255,9 +257,65 @@
       sampleSelect.addEventListener("change", () => { if (sampleSelect.value) { setSource(samples[sampleSelect.value].source, true); updateHash(); renderSvg(); } });
       document.getElementById("clearButton").addEventListener("click", () => { setSource("", true); lastSvg = ""; sampleSelect.value = ""; updateHash(); preview.innerHTML = '<p class="placeholder">プレビューがここに表示されます</p>'; status.textContent = ""; });
 
-      preview.addEventListener("click", () => { if (lastSvg) { modalContent.innerHTML = lastSvg; modal.showModal(); document.getElementById("closePreviewButton").focus(); } });
+      const getExpandedPreviewSvg = () => modalContent.querySelector("svg");
+      const updateExpandedPreviewTransform = () => {
+        const svg = getExpandedPreviewSvg();
+        if (svg) svg.style.transform = `translate(${expandedPreviewState.offsetX}px, ${expandedPreviewState.offsetY}px) scale(${expandedPreviewState.scale})`;
+      };
+      const resetExpandedPreviewTransform = () => {
+        expandedPreviewState.dragging = false;
+        expandedPreviewState.lastX = 0;
+        expandedPreviewState.lastY = 0;
+        expandedPreviewState.offsetX = 0;
+        expandedPreviewState.offsetY = 0;
+        expandedPreviewState.scale = 1;
+        modalContent.classList.remove("is-dragging");
+        updateExpandedPreviewTransform();
+      };
+
+      preview.addEventListener("click", () => { if (lastSvg) { modalContent.innerHTML = lastSvg; resetExpandedPreviewTransform(); modal.showModal(); document.getElementById("closePreviewButton").focus(); } });
       document.getElementById("closePreviewButton").addEventListener("click", () => modal.close());
-      modal.addEventListener("close", () => { modalContent.innerHTML = ""; });
+      modal.addEventListener("close", () => { modalContent.innerHTML = ""; resetExpandedPreviewTransform(); });
+      modalContent.addEventListener("wheel", (event) => {
+        if (!getExpandedPreviewSvg()) return;
+        event.preventDefault();
+        const previousScale = expandedPreviewState.scale;
+        const nextScale = Math.min(8, Math.max(0.25, previousScale * (event.deltaY < 0 ? 1.12 : 0.88)));
+        const rect = modalContent.getBoundingClientRect();
+        const pointerX = event.clientX - rect.left - rect.width / 2;
+        const pointerY = event.clientY - rect.top - rect.height / 2;
+        const scaleRatio = nextScale / previousScale;
+        expandedPreviewState.offsetX = pointerX - (pointerX - expandedPreviewState.offsetX) * scaleRatio;
+        expandedPreviewState.offsetY = pointerY - (pointerY - expandedPreviewState.offsetY) * scaleRatio;
+        expandedPreviewState.scale = nextScale;
+        updateExpandedPreviewTransform();
+      }, { passive: false });
+      modalContent.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || !getExpandedPreviewSvg()) return;
+        expandedPreviewState.dragging = true;
+        expandedPreviewState.lastX = event.clientX;
+        expandedPreviewState.lastY = event.clientY;
+        modalContent.classList.add("is-dragging");
+        modalContent.setPointerCapture(event.pointerId);
+      });
+      modalContent.addEventListener("pointermove", (event) => {
+        if (!expandedPreviewState.dragging) return;
+        expandedPreviewState.offsetX += event.clientX - expandedPreviewState.lastX;
+        expandedPreviewState.offsetY += event.clientY - expandedPreviewState.lastY;
+        expandedPreviewState.lastX = event.clientX;
+        expandedPreviewState.lastY = event.clientY;
+        updateExpandedPreviewTransform();
+      });
+      modalContent.addEventListener("pointerup", (event) => {
+        if (!expandedPreviewState.dragging) return;
+        expandedPreviewState.dragging = false;
+        modalContent.classList.remove("is-dragging");
+        if (modalContent.hasPointerCapture(event.pointerId)) modalContent.releasePointerCapture(event.pointerId);
+      });
+      modalContent.addEventListener("pointercancel", () => {
+        expandedPreviewState.dragging = false;
+        modalContent.classList.remove("is-dragging");
+      });
 
       document.getElementById("copySvgButton").addEventListener("click", async () => {
         if (!lastSvg) return void (status.textContent = "コピーする SVG がありません");
