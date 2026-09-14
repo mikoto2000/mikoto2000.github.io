@@ -251,7 +251,7 @@
       <div class="layout">
         <section class="panel" aria-labelledby="editorTitle">
           <h2 id="editorTitle">テーブル編集</h2>
-          <p class="help">TSV をセルに貼り付けると、そのセルを起点に展開します。Ctrl+Z / Cmd+Z で操作を戻せます。</p>
+          <p class="help">TSV または Markdown テーブルをセルに貼り付けると、そのセルを起点に展開します。Markdown の区切り行は列の配置に反映します。Ctrl+Z / Cmd+Z で操作を戻せます。</p>
           <div class="table-wrap">
             <table id="editorTable"></table>
           </div>
@@ -366,8 +366,54 @@
         return normalized.split("\n").map((row) => row.split("\t"));
       };
 
-      const ensurePasteSize = (startRowIndex, startColumnIndex, tsvRows, startsInHeader) => {
-        const requiredColumns = startColumnIndex + Math.max(...tsvRows.map((row) => row.length));
+      const splitMarkdownRow = (line) => {
+        const cells = [""];
+        const trimmed = line.trim();
+        let endsWithDelimiter = false;
+        for (let index = 0; index < trimmed.length; index += 1) {
+          const character = trimmed[index];
+          endsWithDelimiter = false;
+          if (character === "\\" && /[\\|]/.test(trimmed[index + 1] || "")) {
+            cells[cells.length - 1] += trimmed[++index];
+          } else if (character === "|") {
+            cells.push("");
+            endsWithDelimiter = true;
+          } else {
+            cells[cells.length - 1] += character;
+          }
+        }
+        if (trimmed.startsWith("|")) {
+          cells.shift();
+        }
+        if (endsWithDelimiter) {
+          cells.pop();
+        }
+        return cells.map((cell) => cell.trim().replace(/<br\s*\/?\s*>/gi, "\n"));
+      };
+
+      const parseMarkdownTable = (value) => {
+        const lines = value.trim().split(/\r\n|\r|\n/);
+        if (lines.length < 2 || !lines[0].includes("|") || !lines[1].includes("|")) {
+          return null;
+        }
+        const headers = splitMarkdownRow(lines[0]);
+        const markers = splitMarkdownRow(lines[1]);
+        if (headers.length !== markers.length || !markers.every((marker) => /^:?-{3,}:?$/.test(marker))) {
+          return null;
+        }
+        const aligns = markers.map((marker) => marker.endsWith(":")
+          ? (marker.startsWith(":") ? "center" : "right")
+          : "left");
+        const rows = lines.slice(2).map((line) => splitMarkdownRow(line));
+        // Markdown body rows use the header width: pad missing cells and ignore extras.
+        return {
+          rows: [headers, ...rows.map((row) => headers.map((_, index) => row[index] ?? ""))],
+          aligns,
+        };
+      };
+
+      const ensurePasteSize = (startRowIndex, startColumnIndex, pastedRows, startsInHeader) => {
+        const requiredColumns = startColumnIndex + Math.max(...pastedRows.map((row) => row.length));
         while (state.headers.length < requiredColumns) {
           state.headers.push(`列 ${state.headers.length + 1}`);
           state.aligns.push("left");
@@ -375,8 +421,8 @@
         }
 
         const requiredRows = startsInHeader
-          ? tsvRows.length - 1
-          : startRowIndex + tsvRows.length;
+          ? pastedRows.length - 1
+          : startRowIndex + pastedRows.length;
         while (state.rows.length < requiredRows) {
           state.rows.push(Array(state.headers.length).fill(""));
         }
@@ -384,7 +430,7 @@
         normalizeColumns();
       };
 
-      const pasteTsv = (cell, event) => {
+      const pasteTable = (cell, event) => {
         const clipboardText = event.clipboardData?.getData("text/plain") || "";
         if (!clipboardText.includes("\t") && !/[\r\n]/.test(clipboardText)) {
           return;
@@ -395,16 +441,20 @@
         const startsInHeader = cell.dataset.header === "true";
         const startRowIndex = Number(cell.dataset.row);
         const startColumnIndex = Number(cell.dataset.column);
-        const tsvRows = parseTsv(clipboardText);
+        const markdownTable = parseMarkdownTable(clipboardText);
+        const pastedRows = markdownTable?.rows ?? parseTsv(clipboardText);
 
         pushUndoState();
-        ensurePasteSize(startRowIndex, startColumnIndex, tsvRows, startsInHeader);
+        ensurePasteSize(startRowIndex, startColumnIndex, pastedRows, startsInHeader);
+        markdownTable?.aligns.forEach((align, index) => {
+          state.aligns[startColumnIndex + index] = align;
+        });
 
-        tsvRows.forEach((tsvRow, pastedRowIndex) => {
+        pastedRows.forEach((pastedRow, pastedRowIndex) => {
           const targetIsHeader = startsInHeader && pastedRowIndex === 0;
           const targetRowIndex = startsInHeader ? pastedRowIndex - 1 : startRowIndex + pastedRowIndex;
 
-          tsvRow.forEach((value, pastedColumnIndex) => {
+          pastedRow.forEach((value, pastedColumnIndex) => {
             const targetColumnIndex = startColumnIndex + pastedColumnIndex;
             if (targetIsHeader) {
               state.headers[targetColumnIndex] = value;
@@ -414,7 +464,7 @@
           });
         });
 
-        status.textContent = "TSV を貼り付けました";
+        status.textContent = markdownTable ? "Markdown テーブルを貼り付けました" : "TSV を貼り付けました";
         render();
       };
 
@@ -432,7 +482,7 @@
           }
         });
         wrapper.addEventListener("input", () => updateStateFromCell(wrapper));
-        wrapper.addEventListener("paste", (event) => pasteTsv(wrapper, event));
+        wrapper.addEventListener("paste", (event) => pasteTable(wrapper, event));
         return wrapper;
       };
 
