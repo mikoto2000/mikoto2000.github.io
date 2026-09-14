@@ -245,6 +245,7 @@
     <main>
       <div class="toolbar">
         <button id="copyMarkdown" type="button">Markdown をコピー</button>
+        <button id="copyTsv" type="button">TSV でコピー</button>
         <button id="resetTable" type="button" class="danger">初期化</button>
       </div>
 
@@ -264,6 +265,7 @@
       const tableElement = document.getElementById("editorTable");
       const resetTableButton = document.getElementById("resetTable");
       const copyMarkdownButton = document.getElementById("copyMarkdown");
+      const copyTsvButton = document.getElementById("copyTsv");
       const status = document.getElementById("status");
 
       let state = {
@@ -349,6 +351,16 @@
         const align = `| ${state.aligns.map(alignmentMarker).join(" | ")} |`;
         const rows = state.rows.map((row) => `| ${row.map(escapeMarkdownCell).join(" | ")} |`);
         return [header, align, ...rows].join("\n");
+      };
+
+      const toTsv = () => {
+        normalizeColumns();
+        const escapeTsvCell = (value) => /[\t\r\n"]/.test(value)
+          ? `"${value.replace(/"/g, '""')}"`
+          : value;
+        return [state.headers, ...state.rows]
+          .map((row) => row.map(escapeTsvCell).join("\t"))
+          .join("\n");
       };
 
       const updateStateFromCell = (cell) => {
@@ -667,6 +679,15 @@
         try {
           await navigator.clipboard.writeText(toMarkdown());
           status.textContent = "コピーしました";
+        } catch (error) {
+          status.textContent = `コピーに失敗しました: ${error.message}`;
+        }
+      });
+
+      copyTsvButton.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(toTsv());
+          status.textContent = "TSV でコピーしました";
         } catch (error) {
           status.textContent = `コピーに失敗しました: ${error.message}`;
         }
