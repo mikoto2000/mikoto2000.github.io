@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>JSON pretty print ツール</title>
+    <style>
+      body {
+        box-sizing: border-box;
+        font-family: sans-serif;
+        line-height: 1.6;
+        margin: 2em auto;
+        max-width: 900px;
+        padding: 0 1em;
+      }
+
+      input,
+      button,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      button,
+      select {
+        min-height: 44px;
+        max-width: 100%;
+      }
+
+      button {
+        padding: 0.35em 0.8em;
+      }
+
+      textarea {
+        box-sizing: border-box;
+        display: block;
+        font-family: monospace;
+        min-height: 12em;
+        resize: vertical;
+        tab-size: 4;
+        width: 100%;
+      }
+
+      :focus-visible {
+        outline: 3px solid #165bb8;
+        outline-offset: 2px;
+      }
+
+      .field {
+        margin: 1em 0;
+        min-width: 0;
+      }
+
+      .field label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 0.25em;
+      }
+
+      .controls {
+        display: grid;
+        gap: 1em;
+        grid-template-columns: repeat(auto-fit, minmax(min(14em, 100%), 1fr));
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5em;
+        margin: 1em 0;
+      }
+
+      .hint {
+        font-size: 0.9em;
+      }
+
+      .status {
+        min-height: 1.6em;
+        overflow-wrap: anywhere;
+      }
+
+      .status[data-error="true"] {
+        color: #a01919;
+      }
+
+      @media (max-width: 480px) {
+        body {
+          margin: 1em auto;
+        }
+
+        h1 {
+          font-size: 1.6em;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a href="index.html">← トップページへ戻る</a>
+    <h1>JSON pretty print</h1>
+
+    <main>
+      <p>JSON を整形、または圧縮します。数値の表記、キーの順序、重複キー、文字列のエスケープは変更しません。</p>
+      <p class="hint">処理はこのページ内で完結します。入力内容を外部へ送信したり、保存したりしません。</p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="mode">処理</label>
+          <select id="mode">
+            <option value="pretty">整形 (pretty print)</option>
+            <option value="minify">圧縮 (minify)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="indent">インデント</label>
+          <select id="indent">
+            <option value="2">スペース 2 個</option>
+            <option value="4">スペース 4 個</option>
+            <option value="tab">タブ</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="input">入力 JSON</label>
+        <textarea id="input" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="input-hint" placeholder='例: {"name":"example","values":[1,2,3]}'></textarea>
+        <p id="input-hint" class="hint">入力は 1,000,000 文字、配列・オブジェクトの入れ子は 100 段、出力は 4,000,000 文字までです。文字数とエラーの列番号は UTF-16 単位、行・列番号は 1 から数えます。コメントや末尾のカンマは使えません。</p>
+      </div>
+
+      <div class="actions">
+        <button id="convert" type="button">変換</button>
+        <button id="copy" type="button" disabled>出力をコピー</button>
+        <button id="clear" type="button">クリア</button>
+      </div>
+
+      <div class="field">
+        <label for="output">出力</label>
+        <textarea id="output" wrap="off" spellcheck="false" readonly placeholder="変換結果がここに表示されます"></textarea>
+      </div>
+
+      <p id="status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
+      <noscript><p>このツールを使うには JavaScript を有効にしてください。</p></noscript>
+    </main>
+
+    <script type="module">
+      const MAX_INPUT = 1_000_000;
+      const MAX_DEPTH = 100;
+      const MAX_OUTPUT = 4_000_000;
+      const mode = document.getElementById("mode");
+      const indent = document.getElementById("indent");
+      const input = document.getElementById("input");
+      const output = document.getElementById("output");
+      const convertButton = document.getElementById("convert");
+      const copyButton = document.getElementById("copy");
+      const clearButton = document.getElementById("clear");
+      const status = document.getElementById("status");
+      let revision = 0;
+      let hasOutput = false;
+      let copying = false;
+
+      class FormatError extends Error {
+        constructor(message, offset) {
+          super(message);
+          this.offset = offset;
+        }
+      }
+
+      const setStatus = (message, isError = false) => {
+        status.textContent = message;
+        status.dataset.error = String(isError);
+      };
+
+      const updateCopyButton = () => {
+        copyButton.disabled = !hasOutput || copying;
+      };
+
+      const invalidate = (message = "") => {
+        revision += 1;
+        hasOutput = false;
+        output.value = "";
+        input.removeAttribute("aria-invalid");
+        updateCopyButton();
+        setStatus(message);
+      };
+
+      // Offsets and columns use UTF-16 units. CRLF counts as one line break.
+      const positionAt = (source, offset) => {
+        let line = 1;
+        let column = 1;
+        for (let i = 0; i < offset; i += 1) {
+          if (source[i] === "\r") {
+            if (source[i + 1] === "\n" && i + 1 < offset) i += 1;
+            line += 1;
+            column = 1;
+          } else if (source[i] === "\n") {
+            line += 1;
+            column = 1;
+          } else {
+            column += 1;
+          }
+        }
+        return { line, column };
+      };
+
+      const isDigit = (character) => character >= "0" && character <= "9";
+      const isHex = (character) => isDigit(character)
+        || (character >= "a" && character <= "f")
+        || (character >= "A" && character <= "F");
+
+      // Scan original lexemes without interpreting strings or converting numbers.
+      const createLexer = (source) => {
+        let offset = 0;
+        const fail = (message, at = offset) => {
+          throw new FormatError(message, at);
+        };
+
+        const next = () => {
+          while (offset < source.length && (
+            source[offset] === " " || source[offset] === "\t"
+            || source[offset] === "\n" || source[offset] === "\r"
+          )) offset += 1;
+
+          const start = offset;
+          if (offset === source.length) return { type: "end", raw: "", start };
+          const character = source[offset];
+
+          if ("{}[]:,".includes(character)) {
+            offset += 1;
+            return { type: character, raw: character, start };
+          }
+
+          if (character === '"') {
+            offset += 1;
+            while (offset < source.length) {
+              const current = source[offset];
+              if (current === '"') {
+                offset += 1;
+                return { type: "string", raw: source.slice(start, offset), start };
+              }
+              if (source.charCodeAt(offset) < 0x20) {
+                fail("文字列内の制御文字はエスケープしてください。");
+              }
+              if (current === "\\") {
+                offset += 1;
+                if (offset === source.length) fail("エスケープの後に文字が必要です。");
+                if (source[offset] === "u") {
+                  offset += 1;
+                  for (let digit = 0; digit < 4; digit += 1) {
+                    if (offset === source.length || !isHex(source[offset])) {
+                      fail("Unicode エスケープには 4 桁の 16 進数が必要です。");
+                    }
+                    offset += 1;
+                  }
+                } else {
+                  if (!'"\\/bfnrt'.includes(source[offset])) {
+                    fail("JSON で使用できないエスケープです。");
+                  }
+                  offset += 1;
+                }
+              } else {
+                offset += 1;
+              }
+            }
+            fail("文字列を閉じる二重引用符が必要です。");
+          }
+
+          if (character === "-" || isDigit(character)) {
+            if (source[offset] === "-") offset += 1;
+            if (source[offset] === "0") {
+              offset += 1;
+              if (isDigit(source[offset])) fail("整数部分に余分な先頭の 0 は使えません。");
+            } else if (source[offset] >= "1" && source[offset] <= "9") {
+              while (isDigit(source[offset])) offset += 1;
+            } else {
+              fail("数値の整数部分に数字が必要です。");
+            }
+
+            if (source[offset] === ".") {
+              offset += 1;
+              if (!isDigit(source[offset])) fail("小数点の後に数字が必要です。");
+              while (isDigit(source[offset])) offset += 1;
+            }
+            if (source[offset] === "e" || source[offset] === "E") {
+              offset += 1;
+              if (source[offset] === "+" || source[offset] === "-") offset += 1;
+              if (!isDigit(source[offset])) fail("指数部分に数字が必要です。");
+              while (isDigit(source[offset])) offset += 1;
+            }
+            return { type: "number", raw: source.slice(start, offset), start };
+          }
+
+          const keyword = { t: "true", f: "false", n: "null" }[character];
+          if (keyword) {
+            for (let i = 0; i < keyword.length; i += 1) {
+              if (source[offset] !== keyword[i]) fail(`${keyword} のつづりが正しくありません。`);
+              offset += 1;
+            }
+            return { type: "literal", raw: source.slice(start, offset), start };
+          }
+
+          fail("JSON で使用できない文字です。");
+        };
+
+        return { next };
+      };
+
+      const formatJson = (source, pretty, indentation) => {
+        const lexer = createLexer(source);
+        let token = lexer.next();
+        let outputLength = 0;
+        const chunks = [];
+        const indents = Array.from({ length: MAX_DEPTH + 1 }, (_, depth) => indentation.repeat(depth));
+        const fail = (message) => { throw new FormatError(message, token.start); };
+        const advance = () => { token = lexer.next(); };
+        const write = (text) => {
+          outputLength += text.length;
+          if (outputLength > MAX_OUTPUT) {
+            fail("出力が 4,000,000 文字を超えます。入力を小さくするか、圧縮を選んでください。");
+          }
+          chunks.push(text);
+        };
+        const newline = (depth) => {
+          if (pretty) write("\n" + indents[depth]);
+        };
+
+        const parseValue = (depth) => {
+          if (token.type === "{" || token.type === "[") {
+            if (depth >= MAX_DEPTH) fail("入れ子が上限の 100 段を超えています。");
+            const object = token.type === "{";
+            const close = object ? "}" : "]";
+            write(token.raw);
+            advance();
+            if (token.type === close) {
+              write(token.raw);
+              advance();
+              return;
+            }
+
+            newline(depth + 1);
+            while (true) {
+              if (object) {
+                if (token.type !== "string") fail("オブジェクトのキーには二重引用符で囲んだ文字列が必要です。");
+                write(token.raw);
+                advance();
+                if (token.type !== ":") fail("キーの後にコロン (:) が必要です。");
+                write(pretty ? ": " : ":");
+                advance();
+              }
+              parseValue(depth + 1);
+
+              if (token.type === close) {
+                newline(depth);
+                write(token.raw);
+                advance();
+                return;
+              }
+              if (token.type !== ",") fail(`カンマ (,) または ${close} が必要です。`);
+              write(token.raw);
+              advance();
+              if (token.type === close) fail("末尾のカンマは使えません。");
+              newline(depth + 1);
+            }
+          }
+
+          if (token.type === "string" || token.type === "number" || token.type === "literal") {
+            write(token.raw);
+            advance();
+            return;
+          }
+          fail("JSON の値 (オブジェクト、配列、文字列、数値、true、false、null) が必要です。");
+        };
+
+        parseValue(0);
+        if (token.type !== "end") fail("JSON の値の後に余分な内容があります。");
+        return chunks.join("");
+      };
+
+      convertButton.addEventListener("click", () => {
+        invalidate();
+        const source = input.value;
+        if (source.length > MAX_INPUT) {
+          input.setAttribute("aria-invalid", "true");
+          setStatus("入力エラー: 入力が 1,000,000 文字を超えています。入力を小さくしてください。", true);
+          return;
+        }
+
+        try {
+          const indentation = indent.value === "tab" ? "\t" : " ".repeat(Number(indent.value));
+          output.value = formatJson(source, mode.value === "pretty", indentation);
+          hasOutput = true;
+          updateCopyButton();
+          setStatus(mode.value === "pretty" ? "整形しました。入力は変更していません。" : "圧縮しました。入力は変更していません。");
+        } catch (error) {
+          input.setAttribute("aria-invalid", "true");
+          if (error instanceof FormatError) {
+            const { line, column } = positionAt(source, error.offset);
+            setStatus(`変換エラー: ${line} 行 ${column} 列: ${error.message}`, true);
+          } else {
+            setStatus("変換できませんでした。入力を小さくして、もう一度お試しください。", true);
+          }
+        }
+      });
+
+      input.addEventListener("input", () => {
+        const message = hasOutput || status.textContent ? "入力が変わりました。もう一度変換してください。" : "";
+        invalidate(message);
+      });
+
+      mode.addEventListener("change", () => {
+        indent.disabled = mode.value === "minify";
+        invalidate("処理を変更しました。変換ボタンを押してください。");
+      });
+
+      indent.addEventListener("change", () => {
+        invalidate("インデントを変更しました。変換ボタンを押してください。");
+      });
+
+      copyButton.addEventListener("click", async () => {
+        if (!hasOutput || copying) return;
+        const copiedRevision = revision;
+        const value = output.value;
+        copying = true;
+        updateCopyButton();
+        try {
+          if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+            throw new Error("Clipboard API unavailable");
+          }
+          await navigator.clipboard.writeText(value);
+          if (copiedRevision === revision) setStatus("コピーしました。");
+        } catch {
+          if (copiedRevision === revision) {
+            setStatus("コピーに失敗しました。ブラウザーの権限や接続方式をご確認ください。出力欄を選択して手動でコピーできます。", true);
+            output.focus();
+            output.select();
+          }
+        } finally {
+          copying = false;
+          updateCopyButton();
+        }
+      });
+
+      clearButton.addEventListener("click", () => {
+        input.value = "";
+        invalidate("クリアしました。");
+        input.focus();
+      });
+    </script>
+  </body>
+</html>
