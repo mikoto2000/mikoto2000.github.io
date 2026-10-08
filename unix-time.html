@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Unix 時刻 / ISO 8601 変換ツール</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        line-height: 1.6;
+        margin: 2em auto;
+        max-width: 900px;
+        padding: 0 1em;
+        overflow-wrap: anywhere;
+      }
+
+      input,
+      button,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      input,
+      select,
+      textarea {
+        box-sizing: border-box;
+        max-width: 100%;
+        width: 100%;
+      }
+
+      input,
+      select,
+      button {
+        min-height: 2.75em;
+      }
+
+      textarea {
+        display: block;
+        min-height: 11em;
+      }
+
+      .field {
+        min-width: 0;
+        margin: 1em 0;
+      }
+
+      .field label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 0.25em;
+      }
+
+      .controls {
+        display: grid;
+        gap: 1em;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 14em), 1fr));
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5em;
+        margin: 1em 0;
+      }
+
+      .hint {
+        font-size: 0.9em;
+      }
+
+      .status {
+        min-height: 1.6em;
+      }
+
+      [aria-invalid="true"] {
+        outline: 2px solid #b00020;
+        outline-offset: 2px;
+      }
+
+      :focus-visible {
+        outline: 2px solid #005fcc;
+        outline-offset: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <a href="index.html">← トップページへ戻る</a>
+    <h1>Unix 時刻 / ISO 8601 変換</h1>
+
+    <main>
+      <p>Unix 時刻と日時を相互変換します。入力はブラウザー内だけで処理し、送信・保存しません。</p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="mode">処理</label>
+          <select id="mode">
+            <option value="timestamp">Unix 時刻 → 日時</option>
+            <option value="iso">ISO 8601 → Unix 時刻</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="unit">Unix 時刻の入力単位</label>
+          <select id="unit" aria-describedby="unit-help">
+            <option value="seconds">秒</option>
+            <option value="milliseconds">ミリ秒</option>
+          </select>
+          <p id="unit-help" class="hint">桁数による自動判定はしません。出力には両方の単位を表示します。</p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label id="input-label" for="input">Unix 時刻（秒）</label>
+        <input id="input" type="text" maxlength="128" autocomplete="off" spellcheck="false"
+          placeholder="例: 0 / -0.001 / 1700000000.123" aria-describedby="input-help">
+        <p id="input-help" class="hint">秒は小数点以下 3 桁まで、ミリ秒は整数のみ。符号付きの値に対応します。</p>
+      </div>
+
+      <div class="field">
+        <label for="timezone">任意のタイムゾーン（IANA、出力専用）</label>
+        <input id="timezone" type="text" value="Asia/Tokyo" maxlength="100" list="timezones"
+          autocomplete="off" spellcheck="false" aria-describedby="timezone-help">
+        <datalist id="timezones">
+          <option value="Asia/Tokyo"></option>
+          <option value="UTC"></option>
+          <option value="America/New_York"></option>
+          <option value="America/Los_Angeles"></option>
+          <option value="Europe/London"></option>
+          <option value="Europe/Paris"></option>
+          <option value="Asia/Kolkata"></option>
+        </datalist>
+        <p id="timezone-help" class="hint">夏時間・過去の時差はブラウザーのタイムゾーンデータに従います。この指定で入力日時の解釈は変わりません。</p>
+      </div>
+
+      <div class="actions">
+        <button id="convert" type="button">変換</button>
+        <button id="now" type="button">現在時刻を入力して変換</button>
+        <button id="copy" type="button" disabled>結果をコピー</button>
+        <button id="clear" type="button">クリア</button>
+      </div>
+
+      <div class="field">
+        <label for="output">出力</label>
+        <textarea id="output" readonly spellcheck="false" placeholder="変換結果がここに表示されます"></textarea>
+      </div>
+
+      <p id="status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
+
+      <details>
+        <summary>入力形式・対応範囲</summary>
+        <ul>
+          <li>ISO 8601 は YYYY-MM-DDTHH:MM:SS[.SSS]Z または YYYY-MM-DDTHH:MM:SS[.SSS]±HH:MM の形式です。T と Z は大文字、秒とタイムゾーンは必須です。</li>
+          <li>例: 2024-01-01T09:00:00+09:00 / 2024-01-01T00:00:00.123Z。小数秒は 1〜3 桁です。より細かい精度は丸めずエラーにします。</li>
+          <li>入力年は 0001〜9999 年。変換した UTC も 0001-01-01T00:00:00.000Z〜9999-12-31T23:59:59.999Z の範囲に限ります。</li>
+          <li>存在しない日付、24 時、うるう秒（60 秒）はエラーです。オフセットは 00:00〜23:59 の範囲で、-00:00 は受け付けません。UTC には Z または +00:00 を使ってください。</li>
+          <li>タイムゾーンなしの入力は受け付けません。夏時間の切り替わりで同じ現地時刻が 2 回現れる場合も、入力に明示したオフセットを使います。</li>
+          <li>JST は固定の UTC+09:00 です。選択した IANA ゾーンの過去の時差が秒単位の場合は ±HH:MM:SS で表示します。これは参照用の表示で、ISO 入力には使えません。</li>
+          <li>範囲の端では、現地時刻の出力年が 0000 または +010000 になる場合があります。暦には過去にさかのぼってグレゴリオ暦を使います。</li>
+          <li>入力前後の空白は除去します。指数表記、桁区切り、数字以外の単位表記は受け付けません。</li>
+        </ul>
+      </details>
+      <noscript><p>このツールを使うには JavaScript を有効にしてください。</p></noscript>
+    </main>
+
+    <script type="module">
+      const mode = document.getElementById("mode");
+      const unit = document.getElementById("unit");
+      const input = document.getElementById("input");
+      const inputLabel = document.getElementById("input-label");
+      const inputHelp = document.getElementById("input-help");
+      const timeZoneInput = document.getElementById("timezone");
+      const output = document.getElementById("output");
+      const copyButton = document.getElementById("copy");
+      const status = document.getElementById("status");
+      const minimumMilliseconds = -62135596800000n;
+      const maximumMilliseconds = 253402300799999n;
+      let revision = 0;
+      let copying = false;
+
+      const pad = (value, length = 2) => String(value).padStart(length, "0");
+
+      const invalidate = () => {
+        revision += 1;
+        output.value = "";
+        copyButton.disabled = true;
+        status.textContent = "";
+        input.removeAttribute("aria-invalid");
+        timeZoneInput.removeAttribute("aria-invalid");
+      };
+
+      const updateInputDescription = () => {
+        const isIso = mode.value === "iso";
+        unit.disabled = isIso;
+        if (isIso) {
+          inputLabel.textContent = "ISO 8601 日時（オフセット必須）";
+          input.placeholder = "例: 2024-01-01T09:00:00+09:00";
+          inputHelp.textContent = "YYYY-MM-DDTHH:MM:SS[.SSS]Z または末尾に ±HH:MM。小数秒は 1〜3 桁です。";
+        } else {
+          const isSeconds = unit.value === "seconds";
+          inputLabel.textContent = `Unix 時刻（${isSeconds ? "秒" : "ミリ秒"}）`;
+          input.placeholder = isSeconds ? "例: 0 / -0.001 / 1700000000.123" : "例: 0 / -1 / 1700000000123";
+          inputHelp.textContent = isSeconds
+            ? "秒は小数点以下 3 桁まで。符号付きの値に対応し、それ以上の精度は丸めずエラーにします。"
+            : "ミリ秒は整数のみ。符号付きの値に対応します。";
+        }
+      };
+
+      const ensureRange = (milliseconds) => {
+        if (milliseconds < minimumMilliseconds || milliseconds > maximumMilliseconds) {
+          throw new Error("対応範囲外です。UTC で 0001 年から 9999 年までの日時を入力してください。");
+        }
+        return milliseconds;
+      };
+
+      const parseTimestamp = (value) => {
+        if (unit.value === "milliseconds") {
+          if (!/^[+-]?\d+$/.test(value)) {
+            throw new Error("ミリ秒は整数で入力してください。小数・指数表記・桁区切りは使えません。");
+          }
+          return ensureRange(BigInt(value));
+        }
+
+        const match = /^([+-]?)(\d+)(?:\.(\d{1,3}))?$/.exec(value);
+        if (!match) {
+          throw new Error("秒は整数、または小数点以下 1〜3 桁で入力してください。丸め処理は行いません。");
+        }
+        const absolute = BigInt(match[2]) * 1000n + BigInt((match[3] || "").padEnd(3, "0"));
+        return ensureRange(match[1] === "-" ? -absolute : absolute);
+      };
+
+      // setUTCFullYear avoids Date.UTC's special treatment of years 00–99.
+      // Callers supply calendar-validated fields, so no rollover is accepted as input.
+      const utcDate = (year, month, day, hour, minute, second, millisecond) => {
+        const date = new Date(0);
+        date.setUTCFullYear(year, month - 1, day);
+        date.setUTCHours(hour, minute, second, millisecond);
+        return date;
+      };
+
+      const parseIso = (value) => {
+        const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|([+-])(\d{2}):(\d{2}))$/.exec(value);
+        if (!match) {
+          throw new Error("ISO 8601 の形式を確認してください。秒と Z または ±HH:MM が必須で、小数秒は 3 桁までです。");
+        }
+
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const hour = Number(match[4]);
+        const minute = Number(match[5]);
+        const second = Number(match[6]);
+        const millisecond = Number((match[7] || "").padEnd(3, "0"));
+        const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+        const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+        if (year < 1 || month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1]) {
+          throw new Error("存在しない日付です。入力年は 0001〜9999 年です。");
+        }
+        if (hour > 23 || minute > 59 || second > 59) {
+          throw new Error("時刻の範囲が不正です。時は 00〜23、分・秒は 00〜59 で入力してください。");
+        }
+
+        let offsetMinutes = 0;
+        if (match[8] !== "Z") {
+          const offsetHours = Number(match[10]);
+          const offsetMinutePart = Number(match[11]);
+          if (offsetHours > 23 || offsetMinutePart > 59 || match[8] === "-00:00") {
+            throw new Error("オフセットは ±00:00〜±23:59 です。-00:00 の代わりに Z または +00:00 を指定してください。");
+          }
+          offsetMinutes = (offsetHours * 60 + offsetMinutePart) * (match[9] === "-" ? -1 : 1);
+        }
+
+        // All date fields and dates in this year range are exact safe integers.
+        const localMilliseconds = utcDate(year, month, day, hour, minute, second, millisecond).getTime();
+        return ensureRange(BigInt(localMilliseconds) - BigInt(offsetMinutes) * 60000n);
+      };
+
+      const zoneFormatter = () => {
+        const zone = timeZoneInput.value.trim();
+        if (!zone || zone.length > 100 || /^[+-]/.test(zone) || !/^[A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)*$/.test(zone)) {
+          throw new Error("IANA タイムゾーン名を入力してください（例: Asia/Tokyo）。");
+        }
+        try {
+          return new Intl.DateTimeFormat("en-GB", {
+            timeZone: zone,
+            calendar: "gregory",
+            numberingSystem: "latn",
+            era: "short",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hourCycle: "h23",
+          });
+        } catch {
+          throw new Error("このブラウザーで認識できないタイムゾーンです。IANA 名を確認してください。");
+        }
+      };
+
+      const formatYear = (year) => year >= 0 && year <= 9999
+        ? pad(year, 4)
+        : `${year < 0 ? "-" : "+"}${pad(Math.abs(year), 6)}`;
+
+      const formatZone = (date, formatter) => {
+        const parts = Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]));
+        // Gregorian 1 BC is astronomical year 0000, possible at the lower UTC boundary.
+        const year = parts.era === "BC" ? 1 - Number(parts.year) : Number(parts.year);
+        const month = Number(parts.month);
+        const day = Number(parts.day);
+        const hour = Number(parts.hour);
+        const minute = Number(parts.minute);
+        const second = Number(parts.second);
+        const millisecond = date.getUTCMilliseconds();
+        if (![year, month, day, hour, minute, second].every(Number.isInteger) || hour > 23) {
+          throw new Error("このブラウザーではタイムゾーンの日時を正確に表示できません。");
+        }
+        const localDate = utcDate(year, month, day, hour, minute, second, millisecond);
+        const offsetSeconds = (localDate.getTime() - date.getTime()) / 1000;
+        const absoluteOffset = Math.abs(offsetSeconds);
+        const offsetHours = Math.floor(absoluteOffset / 3600);
+        const offsetMinutes = Math.floor(absoluteOffset % 3600 / 60);
+        const remainderSeconds = absoluteOffset % 60;
+        const offset = `${offsetSeconds < 0 ? "-" : "+"}${pad(offsetHours)}:${pad(offsetMinutes)}${remainderSeconds ? `:${pad(remainderSeconds)}` : ""}`;
+        return `${formatYear(year)}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:${pad(second)}.${pad(millisecond, 3)}${offset}`;
+      };
+
+      const formatSeconds = (milliseconds) => {
+        const absolute = milliseconds < 0n ? -milliseconds : milliseconds;
+        const fraction = String(absolute % 1000n).padStart(3, "0").replace(/0+$/, "");
+        return `${milliseconds < 0n ? "-" : ""}${absolute / 1000n}${fraction ? `.${fraction}` : ""}`;
+      };
+
+      const convert = () => {
+        invalidate();
+        let errorField = input;
+        try {
+          const value = input.value.trim();
+          if (!value) {
+            throw new Error("変換する値を入力してください。");
+          }
+          if (value.length > 128) {
+            throw new Error("入力は 128 文字以内にしてください。");
+          }
+          const milliseconds = mode.value === "iso" ? parseIso(value) : parseTimestamp(value);
+          errorField = timeZoneInput;
+          const formatter = zoneFormatter();
+          errorField = null;
+          // Bounds were checked as BigInt before conversion to a safe integer Number.
+          const date = new Date(Number(milliseconds));
+          const jst = new Date(Number(milliseconds) + 9 * 60 * 60 * 1000).toISOString().replace(/Z$/, "+09:00");
+          const zoned = formatZone(date, formatter);
+          output.value = [
+            `Unix 秒: ${formatSeconds(milliseconds)}`,
+            `Unix ミリ秒: ${milliseconds}`,
+            `UTC: ${date.toISOString()}`,
+            `JST (UTC+09:00 固定): ${jst}`,
+            `IANA (${formatter.resolvedOptions().timeZone}): ${zoned}`,
+          ].join("\n");
+          copyButton.disabled = copying;
+          status.textContent = "変換しました。";
+        } catch (error) {
+          status.textContent = `変換に失敗しました: ${error.message}`;
+          if (errorField) {
+            errorField.setAttribute("aria-invalid", "true");
+            errorField.focus();
+          }
+        }
+      };
+
+      document.getElementById("convert").addEventListener("click", convert);
+      input.addEventListener("input", invalidate);
+      timeZoneInput.addEventListener("input", invalidate);
+      [mode, unit].forEach((element) => {
+        element.addEventListener("change", () => {
+          invalidate();
+          updateInputDescription();
+        });
+      });
+      [input, timeZoneInput].forEach((element) => {
+        element.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" && !event.isComposing) {
+            event.preventDefault();
+            convert();
+          }
+        });
+      });
+
+      document.getElementById("now").addEventListener("click", () => {
+        mode.value = "timestamp";
+        unit.value = "milliseconds";
+        input.value = String(Date.now());
+        updateInputDescription();
+        convert();
+      });
+
+      copyButton.addEventListener("click", async () => {
+        if (copying) return;
+        if (!output.value) {
+          status.textContent = "コピーする結果がありません。";
+          return;
+        }
+        const copyRevision = revision;
+        const text = output.value;
+        copying = true;
+        copyButton.disabled = true;
+        try {
+          if (!navigator.clipboard?.writeText) {
+            throw new Error("クリップボード API が利用できません。");
+          }
+          await navigator.clipboard.writeText(text);
+          if (copyRevision === revision) {
+            status.textContent = "コピーしました。";
+          }
+        } catch {
+          if (copyRevision === revision) {
+            status.textContent = "コピーできませんでした。ブラウザーの権限や HTTPS 接続を確認するか、選択した結果を手動でコピーしてください。";
+            output.focus();
+            output.select();
+          }
+        } finally {
+          copying = false;
+          copyButton.disabled = !output.value;
+        }
+      });
+
+      document.getElementById("clear").addEventListener("click", () => {
+        input.value = "";
+        invalidate();
+        status.textContent = "入力と結果をクリアしました。";
+        input.focus();
+      });
+
+      updateInputDescription();
+    </script>
+  </body>
+</html>
