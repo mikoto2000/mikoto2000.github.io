@@ -1,0 +1,166 @@
+[
+  {
+    "name": "Chrome job membership",
+    "pass": true,
+    "elapsedMs": 315,
+    "version": "158.0.8127.88",
+    "processes": [
+      {
+        "pid": 14600,
+        "type": "browser",
+        "inJob": true
+      },
+      {
+        "pid": 131500,
+        "type": "renderer",
+        "inJob": true
+      },
+      {
+        "pid": 125700,
+        "type": "renderer",
+        "inJob": true
+      },
+      {
+        "pid": 127720,
+        "type": "renderer",
+        "inJob": true
+      },
+      {
+        "pid": 115120,
+        "type": "GPU",
+        "inJob": true
+      },
+      {
+        "pid": 132008,
+        "type": "network.mojom.NetworkService",
+        "inJob": true
+      },
+      {
+        "pid": 129196,
+        "type": "storage.mojom.StorageService",
+        "inJob": true
+      }
+    ]
+  },
+  {
+    "name": "Chrome 1 GiB file registration",
+    "pass": true,
+    "elapsedMs": 231,
+    "wasmHeapBytes": 103415808
+  },
+  {
+    "name": "Chrome full scan COUNT / SUM / MIN / MAX",
+    "pass": true,
+    "elapsedMs": 3823,
+    "info": "1 行 · 5 列 · 3.75 秒",
+    "values": [
+      [
+        "13421773",
+        "1342847530320878",
+        "10738088630320878",
+        "100000000",
+        "100099999"
+      ]
+    ],
+    "wasmHeapBytes": 1228144640
+  },
+  {
+    "name": "Chrome full scan filter",
+    "pass": true,
+    "elapsedMs": 3069,
+    "info": "1 行 · 1 列 · 3.00 秒"
+  },
+  {
+    "name": "Chrome GROUP BY",
+    "pass": true,
+    "elapsedMs": 3356,
+    "info": "100 行 · 3 列 · 3.28 秒"
+  },
+  {
+    "name": "Chrome top 10 sort",
+    "pass": true,
+    "elapsedMs": 3384,
+    "info": "10 行 · 1 列 · 3.31 秒"
+  },
+  {
+    "name": "Chrome small CSV JOIN",
+    "pass": true,
+    "elapsedMs": 3243,
+    "info": "2 行 · 2 列 · 3.15 秒"
+  },
+  {
+    "name": "Chrome cancel and restore",
+    "pass": true,
+    "elapsedMs": 1458
+  },
+  {
+    "name": "Chrome offline and no browser errors",
+    "pass": true,
+    "elapsedMs": 0,
+    "httpRequests": 0,
+    "pageErrors": 0
+  },
+  {
+    "name": "Edge job membership",
+    "pass": false,
+    "error": "AssertionError [ERR_ASSERTION]: {\"browser\":\"Edge\",\"allInJob\":false,\"processes\":[{\"pid\":129876,\"type\":\"browser\",\"inJob\":true},{\"pid\":130656,\"type\":\"renderer\",\"inJob\":true},{\"pid\":23148,\"type\":\"renderer\",\"inJob\":true},{\"pid\":101416,\"type\":\"GPU\",\"inJob\":true},{\"pid\":99348,\"type\":\"network.mojom.NetworkService\",\"inJob\":true},{\"pid\":89984,\"type\":\"storage.mojom.StorageService\",\"inJob\":true},{\"pid\":128884,\"type\":\"entity_extraction_service.mojom.Extractor\",\"inJob\":true},{\"pid\":123744,\"type\":\"winrt_app_id.mojom.WinrtAppIdService\",\"inJob\":false}]}"
+  },
+  {
+    "name": "Edge 1 GiB file registration",
+    "pass": true,
+    "elapsedMs": 318,
+    "wasmHeapBytes": 103415808
+  },
+  {
+    "name": "Edge full scan COUNT / SUM / MIN / MAX",
+    "pass": true,
+    "elapsedMs": 4111,
+    "info": "1 行 · 5 列 · 4.05 秒",
+    "values": [
+      [
+        "13421773",
+        "1342847530320878",
+        "10738088630320878",
+        "100000000",
+        "100099999"
+      ]
+    ],
+    "wasmHeapBytes": 1228144640
+  },
+  {
+    "name": "Edge full scan filter",
+    "pass": true,
+    "elapsedMs": 3698,
+    "info": "1 行 · 1 列 · 3.64 秒"
+  },
+  {
+    "name": "Edge GROUP BY",
+    "pass": true,
+    "elapsedMs": 3366,
+    "info": "100 行 · 3 列 · 3.31 秒"
+  },
+  {
+    "name": "Edge top 10 sort",
+    "pass": true,
+    "elapsedMs": 3305,
+    "info": "10 行 · 1 列 · 3.26 秒"
+  },
+  {
+    "name": "Edge small CSV JOIN",
+    "pass": true,
+    "elapsedMs": 4027,
+    "info": "2 行 · 2 列 · 3.87 秒"
+  },
+  {
+    "name": "Edge cancel and restore",
+    "pass": true,
+    "elapsedMs": 1579
+  },
+  {
+    "name": "Edge offline and no browser errors",
+    "pass": true,
+    "elapsedMs": 0,
+    "httpRequests": 0,
+    "pageErrors": 0
+  }
+]

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval' blob:; style-src 'unsafe-inline'; connect-src blob:; worker-src blob:; img-src data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <link rel="icon" href="data:,">
+  <title>CSV SQL ワークベンチ | DuckDB-Wasm</title>
+  <style>
+    :root{color-scheme:light;--ink:#182c42;--muted:#506276;--line:#ccd7e1;--accent:#006c66;--bg:#f1f5f8}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,sans-serif}a{color:var(--accent)}button,input,select,textarea{font:inherit}button,select,input{max-width:100%}button{cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:.45rem .85rem;background:white;color:var(--ink)}button:hover:not(:disabled){background:#e4f3f0;border-color:var(--accent)}button:disabled{opacity:.5;cursor:default}button.primary{background:var(--accent);color:white;border-color:var(--accent)}:focus-visible{outline:3px solid #dd8b00;outline-offset:3px}select{appearance:none;background:white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='10'%3E%3Cpath d='m2 2 5 5 5-5' fill='none' stroke='%23182c42' stroke-width='2'/%3E%3C/svg%3E") no-repeat right .7rem center;border:1px solid var(--line);border-radius:5px;padding:.4rem 2rem .4rem .6rem}
+    header,main,footer{max-width:1400px;margin:auto;padding:1.4rem 2rem}header{padding-bottom:.6rem}.toplink{font-size:.875rem}h1{font-size:clamp(1.7rem,4vw,2.4rem);letter-spacing:-.04em;line-height:1.25;margin:1rem 0 .5rem}h2{font-size:1.1rem;margin:0 0 .85rem}.lead{color:var(--muted);margin:.4rem 0}.privacy{display:inline-block;color:#00524c;background:#d9eee9;border:1px solid #add3c9;border-radius:4px;font-size:.875rem;padding:.2rem .65rem}main{display:grid;grid-template-columns:310px minmax(0,1fr);gap:1.2rem;align-items:start}.panel{background:white;border:1px solid var(--line);border-radius:10px;padding:1.2rem;min-width:0}.workspace{display:grid;gap:1.2rem;min-width:0}.note{font-size:.875rem;color:var(--muted)}p{margin:.7rem 0}.drop{border:2px dashed #a0b9c5;border-radius:7px;padding:1.1rem .8rem;background:#f7fafb}.drop.drag{border-color:var(--accent);background:#e4f3f0}input[type=file]{width:100%;font-size:.875rem;margin:.7rem 0}.field{margin:.75rem 0}.field label{display:block;margin-bottom:.3rem;font-size:.875rem}.field select{width:100%}.inline{display:flex;gap:.65rem;align-items:center;flex-wrap:wrap}.inline label{font-size:.875rem}.check{font-size:.875rem;display:block;margin:.8rem 0}.filecard{border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem;overflow-wrap:anywhere}.filecard strong{font-family:ui-monospace,monospace}.filename{font-size:.875rem;color:var(--muted)}.schema{max-height:200px;overflow:auto;font-size:.875rem;margin:.5rem 0}.column{display:flex;gap:.5rem;justify-content:space-between;border-bottom:1px solid #edf0f3;padding:.15rem 0}.column code{overflow-wrap:anywhere}.column span{color:var(--muted);white-space:nowrap}.fileactions{display:flex;gap:.4rem}.fileactions button{font-size:.875rem;padding:.25rem .6rem}.examples{display:flex;flex-wrap:wrap;gap:.4rem;margin:.7rem 0}.examples button{font-size:.875rem;padding:.25rem .65rem}textarea{display:block;width:100%;resize:vertical;min-height:200px;background:#112638;color:#edf6fb;border:1px solid #112638;border-radius:7px;padding:1rem;font:16px/1.6 ui-monospace,Consolas,monospace;tab-size:2}.toolbar{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin-top:.85rem}.toolbar .spacer{flex:1}.status{margin:1rem 0 0;font-size:.875rem;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}.status.error{color:#a32121}.resulthead{display:flex;justify-content:space-between;align-items:center;gap:1rem}.resulthead h2{margin:0}.resultinfo{font-size:.875rem;color:var(--muted);margin:.75rem 0}.tablewrap{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:5px}table{border-collapse:separate;border-spacing:0;width:100%;font:14px/1.6 ui-monospace,Consolas,monospace}th,td{padding:.5rem .75rem;border-bottom:1px solid #e1e8ee;text-align:left;white-space:pre;max-width:500px;overflow:hidden;text-overflow:ellipsis}th{position:sticky;top:0;background:#eaf0f5;color:#233d53;font-weight:600;z-index:1}tbody tr:nth-child(even){background:#f7f9fb}td.null{font-style:italic;color:#687d8e}.empty{padding:2rem 1rem;text-align:center;color:var(--muted)}footer{font-size:.875rem;padding-top:0;color:var(--muted)}footer details{margin:.75rem 0}pre.license{max-height:280px;overflow:auto;white-space:pre-wrap;font-size:.8rem}summary{cursor:pointer}code{font-family:ui-monospace,Consolas,monospace}.filelabel{display:block;font-weight:600}.timer{font-variant-numeric:tabular-nums}.danger{color:#a32121}#clear{margin-top:1rem;font-size:.875rem}.loading{padding:.7rem 0}
+    @media(max-width:800px){header,main,footer{padding:1rem}main{grid-template-columns:1fr}.panel{padding:1rem}textarea{min-height:180px}.schema{max-height:140px}.toolbar .spacer{display:none}.resulthead{flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+  <header>
+    <a class="toplink" href="index.html">トップページへ戻る</a>
+    <h1>CSV SQL ワークベンチ</h1>
+    <p class="lead">手元の CSV を、SQL で読み解く。</p>
+    <p class="privacy">ファイル送信なし · エンジン同梱 · ブラウザー内で処理</p>
+  </header>
+  <main>
+    <aside class="panel" aria-labelledby="files-title">
+      <h2 id="files-title">CSV ファイル</h2>
+      <div id="drop" class="drop">
+        <label class="filelabel" for="files">CSV を選択 / ドロップ</label>
+        <input id="files" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" multiple disabled>
+        <div class="note">UTF-8（BOM 可）。複数ファイルを登録して JOIN できます。</div>
+      </div>
+      <div class="field"><label for="header">先頭行</label><select id="header"><option value="yes">列名として使う</option><option value="no">データとして使う</option><option value="auto">自動判定</option></select></div>
+      <div class="field"><label for="delimiter">区切り文字</label><select id="delimiter"><option value="auto">自動判定</option><option value=",">カンマ</option><option value="&#9;">タブ</option><option value=";">セミコロン</option><option value="|">パイプ</option></select></div>
+      <label class="check"><input id="allText" type="checkbox"> すべて文字列として読み込む</label>
+      <p class="note">設定は次に登録するファイルへ適用します。型は先頭のサンプルから推定します。先頭ゼロを残す場合は文字列を選んでください。</p>
+      <div id="filelist"><p class="note">登録したファイルは t1、t2… として参照できます。</p></div>
+      <button id="sample" disabled>サンプル CSV で試す</button>
+      <button id="clear" disabled>すべてのデータを消去</button>
+    </aside>
+    <div class="workspace">
+      <section class="panel" aria-labelledby="sql-title">
+        <h2 id="sql-title">SQL</h2>
+        <div class="examples" aria-label="SQL の例">
+          <button data-example="preview" disabled>先頭行</button><button data-example="count" disabled>行数</button><button data-example="sum" disabled>数値の集計</button><button data-example="join" disabled>JOIN の例</button>
+        </div>
+        <label class="note" for="sql">SELECT / WITH による分析クエリ（Ctrl / ⌘ + Enter で実行）</label>
+        <textarea id="sql" spellcheck="false" autocapitalize="off" autocomplete="off">SELECT * FROM t1 LIMIT 100;</textarea>
+        <div class="toolbar">
+          <button class="primary" id="run" disabled>SQL を実行</button><button id="stop" disabled>中断</button>
+          <span class="spacer"></span>
+          <label for="limit">表示上限</label><select id="limit"><option>100</option><option>500</option><option>1000</option></select>
+          <label for="timeout">制限時間</label><select id="timeout"><option value="30">30 秒</option><option value="120" selected>2 分</option><option value="600">10 分</option></select>
+        </div>
+        <p id="status" class="status" role="status" aria-live="polite">エンジンを準備しています…</p>
+        <p class="note">中断・タイムアウト時はエンジンを再起動して登録ファイルを復元します。データは自動保存せず、ページを閉じると消えます。</p>
+      </section>
+      <section class="panel" aria-labelledby="result-title" aria-busy="false" id="resultpanel">
+        <div class="resulthead"><h2 id="result-title">実行結果</h2><button id="download" disabled>表示結果を CSV 保存</button></div>
+        <p id="resultinfo" class="resultinfo">必要な列や条件を SQL で指定してください。</p>
+        <div id="result" class="tablewrap"><div class="empty">CSV を登録すると、ここに結果を表示します。</div></div>
+      </section>
+    </div>
+  </main>
+  <footer>
+    <details><summary>大きい CSV を扱うとき</summary><p>CSV はローカルファイルから部分読み込みし、登録時には全行を取り込みません。登録・プレビューが成功しても、全行の解析が成功したとは限りません。行数や集計で確認してください。複数 CSV の合計サイズ、列数、ソート・JOIN の内容、端末のメモリにより処理可能な量は変わります。</p><p>数値中心の 1 GB CSV を想定した PC 向けです。メモリ不足の場合は、対象列や条件を絞ってください。このページではディスクへの一時退避は使いません。型推定で後半の値に合わない場合は、すべて文字列として登録し直して CAST / TRY_CAST を使えます。</p></details>
+    <details><summary>通信と数値の扱い</summary><p>SQL エンジン・WASM・画面をこの HTML に同梱しています。初回の HTML 取得以降、CSV の登録・SQL 実行・結果保存による HTTP/HTTPS 通信はありません。広告・外部フォント・アクセス解析は使いません。URL を SQL へ指定してデータを取得する機能や、拡張の追加ダウンロードも無効です。トップページへの移動や再読み込みは別のページ取得になります。</p><p>BIGINT・DECIMAL の結果は DuckDB 内で文字列に変換し、JavaScript の数値変換による桁落ちを避けます。CSV の小数が DOUBLE と推定された場合は浮動小数点演算になります。金額などの厳密な計算では DECIMAL への明示的な CAST を指定してください。CSV 保存は表示中の最大 1,000 行のみで、NULL は空欄になります。表計算ソフトで開く際は、文字列が数式として解釈される場合があります。</p></details>
+    <details><summary>エンジンとライセンス</summary><p id="engine">DuckDB-Wasm 1.32.0 / 単一 Worker</p><pre class="license">%%LICENSES%%</pre></details>
+  </footer>
+  <noscript>JavaScript と WebAssembly を有効にしてください。</noscript>
+  <script id="wasm" type="application/octet-stream">%%WASM%%</script>
+  <script>
+    'use strict';
+    const LIBRARY_SOURCE = %%LIBRARY%%;
+    const WORKER_SOURCE = %%WORKER%%;
+    %%APP%%
+  </script>
+</body>
+</html>

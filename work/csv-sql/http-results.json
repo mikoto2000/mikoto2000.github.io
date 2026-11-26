@@ -1,0 +1,49 @@
+[
+  {
+    "name": "HTTP startup requires only HTML; live network SQL blocked",
+    "pass": true,
+    "requests": [
+      "http://127.0.0.1:49423/csv-sql.html"
+    ],
+    "serverRequests": 1
+  },
+  {
+    "name": "HTTP page + offline 1 GiB full scan",
+    "pass": true,
+    "browser": "158.0.8127.88",
+    "result": [
+      [
+        "13421773",
+        "1342847530320878",
+        "10738088630320878"
+      ]
+    ],
+    "info": "1 行 · 3 列 · 5.95 秒",
+    "httpRequestsAfterStartup": 0,
+    "wasmHeapBytes": 1196687360
+  },
+  {
+    "name": "automatic timeout restores registered files",
+    "pass": true
+  },
+  {
+    "name": "settings: TSV, no header and all-text preserve zeros",
+    "pass": true
+  },
+  {
+    "name": "empty inputs fail and recover",
+    "pass": true
+  },
+  {
+    "name": "keyboard shortcut, safe filename and cleanup",
+    "pass": true
+  },
+  {
+    "name": "Edge offline 1 GiB full scan + exact sums",
+    "pass": true,
+    "browser": "158.0.4370.33",
+    "info": "1 行 · 3 列 · 6.64 秒",
+    "httpRequests": 0,
+    "wasmHeapBytes": 1228144640
+  }
+]
