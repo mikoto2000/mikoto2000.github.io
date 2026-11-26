@@ -1,2 +1,8 @@
 /work/node_modules/
 /work/__pycache__/
+/work/package/
+/work/*.tgz
+/work/jq.exe
+/work/standalone/
+/work/*.png
+/work/*-results.json

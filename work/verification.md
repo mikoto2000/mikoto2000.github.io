@@ -55,9 +55,10 @@ Playwrightでインストール済みの実ブラウザをヘッドレス起動�
 
 ## 再実行
 
-開発・検証ファイルはすべてこの `work/` に配置し、Gitの管理対象としている。再取得できる `work/node_modules/` とPythonの `work/__pycache__/` は `.gitignore` で除外する。GitHub Pagesでは、ルートの `_config.yml` の `exclude: [work]` により、このディレクトリ全体を公開対象から除外する。コミットは実行していない。
+ソース・ライセンス・検証スクリプトとこの記録は Git 管理する。依存物・検証結果 JSON・画像・単独 HTML の検証用コピーは Git 管理対象外で、JSON のファイル名は検証時の生成先を示す。依存取得と検証環境の準備は [README.md](README.md) を参照。GitHub Pages では `_config.yml` の `exclude: [work]` により、このディレクトリ全体を公開対象から除外する。
 
 ```powershell
+python work/prepare.py
 python work/make_examples.py
 python work/build.py
 node work/verify.cjs

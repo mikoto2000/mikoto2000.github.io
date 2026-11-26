@@ -43,7 +43,7 @@ node work/csv-sql/verify-http.cjs
 
 生成 CSV は **1,073,741,864 bytes**（1 GiB より 40 bytes 大きい）、8 BIGINT 列、**13,421,773 行**。100,000 行の数値ブロックを繰り返し、端数を追加する。行のサイズは 80 bytes。文字列・高カーディナリティの巨大 JOIN などを代表するデータではない。期待件数と合計値は Python で独立に計算する。CSV と配布アーカイブは Git 管理対象外。
 
-実測結果と端末条件は [verification.md](verification.md)、機械可読の記録は `verification-results.json` / `http-results.json`。
+実測結果と端末条件は [verification.md](verification.md)。機械可読の記録は Git 管理対象外で、再検証時に生成する: `verification-results.json` / `http-results.json`。
 
 ## ブラウザー全体のメモリ制限テスト（Windows）
 
@@ -58,3 +58,5 @@ Windows Job Object で Node のテストプロセスと、そこから起動し�
 `--edge` を付けると Edge も検証する。ただし今回の環境では Edge が OS 経由で起動した `WinrtAppIdService` がジョブに属していなかったため、ブラウザー全体への制限が成立したとは判断していない。その試行は `memory-edge-attempt-results.json` / `memory-edge-attempt-job-results.json` に残した。ジョブ外の OS 補助プロセスの設定は変更しない。検証プログラムは所属確認に失敗したブラウザーの制限付きベンチマークを打ち切る。
 
 GitHub Pages の通常の Jekyll ビルドでは、ルートの `_config.yml` の `exclude: [work]` により、このソース・テスト・検証記録と依存ファイルのディレクトリ全体を配信対象から除外する。今回のツールで配信するのはルートの `csv-sql.html`。リポジトリ全体をそのままアップロードする独自 Actions の場合は、この Jekyll 設定だけでは除外されない。
+
+依存物・アーカイブ・fixtures・キャッシュと、検証結果 JSON・画像は Git 管理対象外。ソース・ライセンス・検証スクリプト・Markdown の検証記録を管理する。記録内の JSON ファイル名は検証時の生成先を示す。Playwright の導入手順は [../README.md](../README.md) を参照。

@@ -11,7 +11,7 @@ glue=glue.replace('stdoutSink.toString().trim()', 'stdoutSink.toString()').repla
 glue=glue.replace('if (length >= bytes.length) {', 'if (length >= (Module.outputLimit || 1048576)) { if (!Module.limitHit) { Module.limitHit=true; Module.onOutputLimit(); } throw new Error("OUTPUT_LIMIT"); }\n            if (length >= bytes.length) {')
 wasm=base64.b64encode((p/'package/dist/build/jq.wasm').read_bytes()).decode()
 worker=glue+'\n'+(p/'worker.js').read_text(encoding='utf-8')
-licenses='\n\n'.join(name+'\n'+(p/file).read_text(encoding='utf-8') for name,file in [('jq-wasm (MIT; modified output sink and whitespace handling)','package/LICENSE'),('jq 1.8.2 and bundled components','jq-COPYING'),('Oniguruma','oniguruma-COPYING'),('Emscripten runtime','emscripten-LICENSE')])
+licenses='\n\n'.join(name+'\n'+(p/file).read_text(encoding='utf-8') for name,file in [('jq-wasm (MIT; modified output sink and whitespace handling)','jq-wasm-LICENSE'),('jq 1.8.2 and bundled components','jq-COPYING'),('Oniguruma','oniguruma-COPYING'),('Emscripten runtime','emscripten-LICENSE')])
 page=(p/'page.html').read_text(encoding='utf-8').replace('%%LICENSES%%',html.escape(licenses)).replace('%%WORKER%%',json.dumps(worker).replace('</','<\\/')).replace('%%WASM%%',wasm).replace('%%EXAMPLES%%',(p/'examples.json').read_text(encoding='utf-8')).replace('%%APP%%',(p/'app.js').read_text(encoding='utf-8'))
 (p.parent/'jq-playground.html').write_text(page,encoding='utf-8')
 print('Built',len(page.encode()),'bytes')

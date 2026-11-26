@@ -90,3 +90,5 @@ Windows が記録したジョブ全体のピークコミットメモリは **4,1
 Edge も試したが、OS 経由で起動された `winrt_app_id.mojom.WinrtAppIdService` の PID がジョブ外だった。集計自体は成功したものの、Edge 全体へのメモリ制限が成立したとは判断していない。その所属検証の失敗も `memory-edge-attempt-results.json` / `memory-edge-attempt-job-results.json` に保存した。ジョブ外の補助プロセスに制限を追加する操作はしていない。最終の Chrome 単独テストは終了コード 0 で完了。
 
 再現: `python work/csv-sql/memory-job.py`。最終結果は `memory-results.json` / `memory-job-results.json`。Job Object の制限・ピーク値の意味は [Microsoft の公式仕様](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information)、子ジョブの扱いは [Nested Jobs](https://learn.microsoft.com/en-us/windows/win32/procthread/nested-jobs) を参照。
+
+検証結果 JSON と画像は Git 管理対象外。本文中のファイル名は各検証スクリプトの生成先を示す。再実行手順は [README.md](README.md) を参照。
