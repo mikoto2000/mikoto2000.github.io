@@ -38,6 +38,14 @@ self.onmessage = async ({data: {id, kind, payload}}) => {
         const options = ["sample_size=20480", "auto_detect=true", "parallel=false", "ignore_errors=false", `all_varchar=${!!allText}`];
         if (header !== 'auto') options.push(`header=${header === 'yes'}`);
         if (delimiter !== 'auto') options.push(`delim=${qs(delimiter)}`);
+        // No quotes in the sample must not disable quoting for later rows.
+        // Preserve detected nonstandard dialects; otherwise use CSV's standard
+        // double quote and doubled-quote escaping, including after the sample.
+        const dialect = rows(conn.query(`SELECT Quote, Escape FROM sniff_csv(${qs(path)}, ${options.join(',')})`))[0];
+        const detected = value => value && value !== '(empty)' ? value : null;
+        const quote = detected(dialect[0]) || '"';
+        const escape = detected(dialect[1]) || quote;
+        options.push(`quote=${qs(quote)}`, `escape=${qs(escape)}`);
         conn.query(`CREATE VIEW ${qi(name)} AS SELECT * FROM read_csv(${qs(path)}, ${options.join(',')})`);
         const schema = rows(conn.query(`DESCRIBE ${qi(name)}`)).map(row => ({name: row[0], type: row[1]}));
         result = {schema};

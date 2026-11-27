@@ -15,7 +15,8 @@ async function query(sql,limit='100'){
 }
 async function importText(name,text){await page.locator('#files').setInputFiles({name,mimeType:'text/csv',buffer:Buffer.from(text)});await idle();assert(!await page.locator('#status').evaluate(e=>e.classList.contains('error')),await page.locator('#status').textContent());}
 (async()=>{
-  browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+  const downloadsPath=path.join(dir,'fixtures','downloads');fs.mkdirSync(downloadsPath,{recursive:true});
+  browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,downloadsPath});
   context=await browser.newContext({offline:true,viewport:{width:1440,height:1050},acceptDownloads:true});
   await context.addInitScript(()=>{File.prototype.text=File.prototype.arrayBuffer=function(){throw Error('Whole-file reads are forbidden by this test');};});
   context.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url());});

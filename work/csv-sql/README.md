@@ -39,11 +39,14 @@ python work/csv-sql/build.py
 python work/csv-sql/make-fixture.py
 node work/csv-sql/verify.cjs
 node work/csv-sql/verify-http.cjs
+node work/csv-sql/verify-quotes.cjs
 ```
 
 生成 CSV は **1,073,741,864 bytes**（1 GiB より 40 bytes 大きい）、8 BIGINT 列、**13,421,773 行**。100,000 行の数値ブロックを繰り返し、端数を追加する。行のサイズは 80 bytes。文字列・高カーディナリティの巨大 JOIN などを代表するデータではない。期待件数と合計値は Python で独立に計算する。CSV と配布アーカイブは Git 管理対象外。
 
 実測結果と端末条件は [verification.md](verification.md)。機械可読の記録は Git 管理対象外で、再検証時に生成する: `verification-results.json` / `http-results.json`。
+
+引用符の判定では、サンプルで検出した形式を維持し、検出されなかった場合は標準の二重引用符と `""` エスケープを使用する。これにより先頭 20,480 行より後に初めて引用符が現れても、カンマ・改行・引用符を含む値を正しく読み取る。`verify-quotes.cjs` は 30,000 行の引用符なしデータの後にこれらの値を配置し、全件集計・検索・ソート・JOIN・CSV 保存と再登録・設定・中断後復元を検証する。
 
 ## ブラウザー全体のメモリ制限テスト（Windows）
 
