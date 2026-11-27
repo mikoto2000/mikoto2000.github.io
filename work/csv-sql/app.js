@@ -6,7 +6,7 @@ const size = n => n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : n >= 1e6 ? `${(n / 1
 function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
 function controls() {
   const disabled = !ready || busy;
-  for (const id of ['files','sample','run','clear']) $(id).disabled = disabled;
+  for (const id of ['files','sample','sample-json','sample-yaml','run','clear']) $(id).disabled = disabled;
   for (const id of ['header','delimiter','allText','limit','timeout']) $(id).disabled = busy;
   $('sql').readOnly = busy;
   for (const el of document.querySelectorAll('[data-example],.fileactions button')) el.disabled = disabled;
@@ -124,17 +124,18 @@ function renderFiles() {
 async function addFiles(files) {
   const chosen = Array.from(files);
   if (!chosen.length) return;
-  await perform('CSV を登録', async () => {
+  const formatOf = file => /\.json$/i.test(file.name) ? 'json' : /\.ya?ml$/i.test(file.name) ? 'yaml' : 'csv';
+  await perform(chosen.every(file => formatOf(file) === 'csv') ? 'CSV を登録' : 'ファイルを登録', async () => {
     let last;
     for (const file of chosen) {
       const n = ++fileId;
-      const dataset = {file, name:`t${n}`, path:`input-${n}.csv`, header:$('header').value, delimiter:$('delimiter').value, allText:$('allText').checked};
+      const dataset = {file, format:formatOf(file), name:`t${n}`, path:`input-${n}.csv`, header:$('header').value, delimiter:$('delimiter').value, allText:$('allText').checked};
       const response = await rpc('import', dataset);
       dataset.schema = response.result.schema;
       datasets.push(dataset); last = dataset; renderFiles();
     }
     $('sql').value = `SELECT * FROM ${quote(last.name)} LIMIT 100;`;
-    return `${chosen.length} ファイルを登録しました（全行の読み取りは SQL 実行時）。「SQL を実行」で確認できます。`;
+    return `${chosen.length} ファイルを登録しました${chosen.every(file => formatOf(file) === 'csv') ? '（全行の読み取りは SQL 実行時）' : '（JSON・YAML は全行を読み込み済み）'}。「SQL を実行」で確認できます。`;
   });
 }
 function showResult(result, ms) {
@@ -179,6 +180,11 @@ $('stop').onclick = () => cancel();
 $('sql').addEventListener('input', clearResult);
 $('sql').addEventListener('keydown', event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) { event.preventDefault(); run(); } });
 $('sample').onclick = () => addFiles([new File(['region,month,amount,quantity\n東京,2026-01,1200,3\n大阪,2026-01,800,2\n東京,2026-02,1500,4\n大阪,2026-02,900,3\n'], 'sample.csv', {type:'text/csv'})]);
+$('sample-json').onclick = () => addFiles([new File([JSON.stringify([
+  {region:'東京', month:'2026-01', amount:1200, quantity:3},
+  {region:'大阪', month:'2026-01', amount:800, quantity:2}
+])], 'sample.json', {type:'application/json'})]);
+$('sample-yaml').onclick = () => addFiles([new File(['- region: 東京\n  month: 2026-01\n  amount: 1200\n  quantity: 3\n- region: 大阪\n  month: 2026-01\n  amount: 800\n  quantity: 2\n'], 'sample.yaml', {type:'application/yaml'})]);
 $('clear').onclick = async () => {
   if (busy) return;
   busy = true; controls(); terminate(); datasets = []; fileId = 0; renderFiles(); clearResult();
@@ -188,7 +194,7 @@ $('clear').onclick = async () => {
 };
 for (const button of document.querySelectorAll('[data-example]')) button.onclick = () => {
   const dataset = datasets[0];
-  if (!dataset) { status('先に CSV を登録してください。', true); return; }
+  if (!dataset) { status('先にファイルを登録してください。', true); return; }
   const name = quote(dataset.name);
   const numeric = dataset.schema.find(c => /INT|DECIMAL|DOUBLE|FLOAT|REAL/.test(c.type));
   const column = numeric ? quote(numeric.name) : null;
@@ -196,7 +202,7 @@ for (const button of document.querySelectorAll('[data-example]')) button.onclick
     preview:`SELECT * FROM ${name} LIMIT 100;`,
     count:`SELECT COUNT(*) AS row_count FROM ${name};`,
     sum:column ? `SELECT\n  COUNT(*) AS row_count,\n  MIN(${column}) AS minimum,\n  MAX(${column}) AS maximum,\n  SUM(${column}) AS total,\n  AVG(${column}) AS average\nFROM ${name};` : `SELECT COUNT(*) AS row_count FROM ${name};`,
-    join:datasets.length > 1 ? `SELECT a.*, b.*\nFROM ${name} AS a\nJOIN ${quote(datasets[1].name)} AS b\n  ON a.${quote(dataset.schema[0].name)} = b.${quote(datasets[1].schema[0].name)}\nLIMIT 100;` : '-- 2 つ目の CSV を登録すると JOIN の例を作れます。'
+    join:datasets.length > 1 ? `SELECT a.*, b.*\nFROM ${name} AS a\nJOIN ${quote(datasets[1].name)} AS b\n  ON a.${quote(dataset.schema[0].name)} = b.${quote(datasets[1].schema[0].name)}\nLIMIT 100;` : '-- 2 つ目のファイルを登録すると JOIN の例を作れます。'
   };
   $('sql').value = examples[button.dataset.example]; clearResult();
 };
@@ -220,4 +226,4 @@ const wasmBlob = (() => {
   return new Blob(chunks, {type:'application/wasm'});
 })();
 const workerURL = URL.createObjectURL(new Blob([LIBRARY_SOURCE, '\n', WORKER_SOURCE], {type:'text/javascript'}));
-initEngine().then(() => status('準備完了。CSV を選択してください。通信せずに分析できます。')).catch(error => status(`初期化に失敗しました。${error.message}`, true));
+initEngine().then(() => status('準備完了。CSV・JSON・YAML を選択してください。通信せずに分析できます。')).catch(error => status(`初期化に失敗しました。${error.message}`, true));

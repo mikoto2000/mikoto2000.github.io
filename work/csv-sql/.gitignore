@@ -5,6 +5,7 @@
 /node_modules/
 /runtime.js
 /arrow/
+/yaml/
 /memory-processes.json
 /memory-membership.json
 /memory-test.log

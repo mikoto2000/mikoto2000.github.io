@@ -17,23 +17,26 @@
   <header>
     <a class="toplink" href="index.html">トップページへ戻る</a>
     <h1>CSV SQL ワークベンチ</h1>
-    <p class="lead">手元の CSV を、SQL で読み解く。</p>
+    <p class="lead">手元の CSV・JSON・YAML を、SQL で読み解く。</p>
     <p class="privacy">ファイル送信なし · エンジン同梱 · ブラウザー内で処理</p>
   </header>
   <main>
     <aside class="panel" aria-labelledby="files-title">
-      <h2 id="files-title">CSV ファイル</h2>
+      <h2 id="files-title">CSV / JSON / YAML ファイル</h2>
       <div id="drop" class="drop">
-        <label class="filelabel" for="files">CSV を選択 / ドロップ</label>
-        <input id="files" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" multiple disabled>
+        <label class="filelabel" for="files">ファイルを選択 / ドロップ</label>
+        <input id="files" type="file" accept=".csv,.tsv,.txt,.json,.yaml,.yml,text/csv,text/tab-separated-values,application/json,application/yaml,text/yaml" multiple disabled>
         <div class="note">UTF-8（BOM 可）。複数ファイルを登録して JOIN できます。</div>
       </div>
       <div class="field"><label for="header">先頭行</label><select id="header"><option value="yes">列名として使う</option><option value="no">データとして使う</option><option value="auto">自動判定</option></select></div>
       <div class="field"><label for="delimiter">区切り文字</label><select id="delimiter"><option value="auto">自動判定</option><option value=",">カンマ</option><option value="&#9;">タブ</option><option value=";">セミコロン</option><option value="|">パイプ</option></select></div>
       <label class="check"><input id="allText" type="checkbox"> すべて文字列として読み込む</label>
-      <p class="note">設定は次に登録するファイルへ適用します。型は先頭のサンプルから推定します。先頭ゼロを残す場合は文字列を選んでください。</p>
+      <p class="note">設定は次に登録するファイルへ適用します。CSV の型は先頭のサンプルから推定します。先頭ゼロを残す場合は文字列を選んでください。先頭行・区切り文字の設定は CSV のみに適用します。</p>
+      <details class="note"><summary>JSON・YAML の入力形式</summary><p>拡張子 .json / .yaml / .yml で判定します。オブジェクトは 1 行、その配列は複数行になります。YAML は複数ドキュメントにも対応します。</p><pre>[{"name":"東京","amount":1200},
+ {"name":"大阪","amount":800}]</pre><p>キーが列名になり、欠けた値と null は NULL、空文字列は空文字列として保持します。ネストしたオブジェクト・配列は JSON 文字列になります。数値・真偽値は型を維持し、文字列との混在列は文字列になります。</p><p>1 ファイル 20 MiB、行数 × 列数 1,000,000、ネスト 50 段まで。登録時に全体を読み込みます。安全な整数範囲（±9,007,199,254,740,991）を超える数値は引用符で囲んでください。引用符付き数値文字列は文字列のままです。小数は DOUBLE で扱います。循環参照・特殊タグ・空の列名・大文字小文字だけが異なる列名は扱えません。</p></details>
       <div id="filelist"><p class="note">登録したファイルは t1、t2… として参照できます。</p></div>
       <button id="sample" disabled>サンプル CSV で試す</button>
+      <div class="examples"><button id="sample-json" disabled>JSON の例</button><button id="sample-yaml" disabled>YAML の例</button></div>
       <button id="clear" disabled>すべてのデータを消去</button>
     </aside>
     <div class="workspace">
@@ -56,13 +59,13 @@
       <section class="panel" aria-labelledby="result-title" aria-busy="false" id="resultpanel">
         <div class="resulthead"><h2 id="result-title">実行結果</h2><button id="download" disabled>表示結果を CSV 保存</button></div>
         <p id="resultinfo" class="resultinfo">必要な列や条件を SQL で指定してください。</p>
-        <div id="result" class="tablewrap"><div class="empty">CSV を登録すると、ここに結果を表示します。</div></div>
+        <div id="result" class="tablewrap"><div class="empty">ファイルを登録すると、ここに結果を表示します。</div></div>
       </section>
     </div>
   </main>
   <footer>
     <details><summary>大きい CSV を扱うとき</summary><p>CSV はローカルファイルから部分読み込みし、登録時には全行を取り込みません。登録・プレビューが成功しても、全行の解析が成功したとは限りません。行数や集計で確認してください。複数 CSV の合計サイズ、列数、ソート・JOIN の内容、端末のメモリにより処理可能な量は変わります。</p><p>数値中心の 1 GB CSV を想定した PC 向けです。メモリ不足の場合は、対象列や条件を絞ってください。このページではディスクへの一時退避は使いません。型推定で後半の値に合わない場合は、すべて文字列として登録し直して CAST / TRY_CAST を使えます。</p></details>
-    <details><summary>通信と数値の扱い</summary><p>SQL エンジン・WASM・画面をこの HTML に同梱しています。初回の HTML 取得以降、CSV の登録・SQL 実行・結果保存による HTTP/HTTPS 通信はありません。広告・外部フォント・アクセス解析は使いません。URL を SQL へ指定してデータを取得する機能や、拡張の追加ダウンロードも無効です。トップページへの移動や再読み込みは別のページ取得になります。</p><p>BIGINT・DECIMAL の結果は DuckDB 内で文字列に変換し、JavaScript の数値変換による桁落ちを避けます。CSV の小数が DOUBLE と推定された場合は浮動小数点演算になります。金額などの厳密な計算では DECIMAL への明示的な CAST を指定してください。CSV 保存は表示中の最大 1,000 行のみで、NULL は空欄になります。表計算ソフトで開く際は、文字列が数式として解釈される場合があります。</p></details>
+    <details><summary>通信と数値の扱い</summary><p>SQL エンジン・WASM・画面をこの HTML に同梱しています。初回の HTML 取得以降、ファイルの登録・SQL 実行・結果保存による HTTP/HTTPS 通信はありません。広告・外部フォント・アクセス解析は使いません。URL を SQL へ指定してデータを取得する機能や、拡張の追加ダウンロードも無効です。トップページへの移動や再読み込みは別のページ取得になります。</p><p>BIGINT・DECIMAL の結果は DuckDB 内で文字列に変換し、JavaScript の数値変換による桁落ちを避けます。CSV の小数が DOUBLE と推定された場合は浮動小数点演算になります。金額などの厳密な計算では DECIMAL への明示的な CAST を指定してください。CSV 保存は表示中の最大 1,000 行のみで、NULL は空欄になります。表計算ソフトで開く際は、文字列が数式として解釈される場合があります。</p></details>
     <details><summary>エンジンとライセンス</summary><p id="engine">DuckDB-Wasm 1.32.0 / 単一 Worker</p><pre class="license">%%LICENSES%%</pre></details>
   </footer>
   <noscript>JavaScript と WebAssembly を有効にしてください。</noscript>

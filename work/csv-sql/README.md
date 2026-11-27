@@ -5,8 +5,12 @@
 ## 利用と制約
 
 - UTF-8 CSV/TSV を複数登録し、`t1`、`t2`… を SELECT / WITH で参照する。区切り文字・ヘッダー・全列文字列モードを選べる。設定変更は登録済みファイルに遡及しない。
-- 登録は `File` を Worker に渡し、`BROWSER_FILEREADER` / direct I/O で部分読み取りする。`File.text()` / `arrayBuffer()` で CSV 全体を JS に展開しない。DuckDB 内部の読み取りバッファなどには別途メモリが必要。
-- 全行をテーブルへ取り込まず `read_csv` を参照する VIEW を作る。型推定は先頭 20,480 行をサンプルする。データ後半の型不一致はクエリ時にエラーになるため、登録だけで全行の妥当性を確認したとは扱わない。
+- `.json` / `.yaml` / `.yml`（大文字可）も登録でき、CSV と混在して JOIN できる。オブジェクトを 1 行、その配列を複数行として扱う。YAML は複数ドキュメントを連結する。キーを列名にし、全行のキーの和集合を使用する。欠けた値 / null は NULL、空文字列は空文字列。ネストしたオブジェクト / 配列は JSON 文字列として保持する。
+- JSON / YAML は数値を BIGINT / DOUBLE、真偽値を BOOLEAN、文字列を VARCHAR として登録する。文字列との混在列は VARCHAR、整数と小数の混在列は DOUBLE。引用符付き数値文字列は文字列のまま。全列文字列モードも利用できる。ヘッダー・区切り文字の設定は CSV にだけ適用する。
+- JSON / YAML は Worker 内で全体を解析し、型を明示した内部 CSV に変換する。1 ファイル 20 MiB、行数 × 列数 1,000,000、ネスト 50 段、走査要素 1,000,000、展開文字列 32 Mi 文字、変換後 CSV 64 MiB まで。CSV の部分読み込み経路と上限は変更しない。非有限数・安全な整数範囲（±9,007,199,254,740,991）外の数値は精度が失われるのを避けるため拒否する。大きな整数は入力で引用符を付け、SQL で BIGINT / DECIMAL に CAST できる。小数は DOUBLE の精度となる。
+- YAML は同梱 js-yaml 4.1.1 の JSON_SCHEMA で解析する。日付は文字列、特殊タグ・循環参照は拒否する。空列名・DuckDB の識別子として大小文字だけが異なる列名・スカラーの行・空配列・列のないデータも拒否する。
+- CSV 登録は `File` を Worker に渡し、`BROWSER_FILEREADER` / direct I/O で部分読み取りする。`File.text()` / `arrayBuffer()` で CSV 全体を JS に展開しない。DuckDB 内部の読み取りバッファなどには別途メモリが必要。
+- CSV は全行をテーブルへ取り込まず `read_csv` を参照する VIEW を作る。型推定は先頭 20,480 行をサンプルする。データ後半の型不一致はクエリ時にエラーになるため、登録だけで全行の妥当性を確認したとは扱わない。
 - 表示は 100 / 500 / 1,000 行、結果データは 4 MiB まで。表示上限を SQL 側に適用する。CSV 保存は表示結果のみ。全件エクスポート・更新 SQL・拡張追加・ディスク退避は提供しない。
 - BIGINT / HUGEINT / DECIMAL などは DuckDB 内で VARCHAR に変換して返す。JS Number による精度の損失を避ける。DOUBLE の浮動小数点誤差を除去するものではない。
 - 中断 / タイムアウトは Worker を終了し、保持した `File` と読み取り設定で VIEW を復元する。ファイルと結果は自動保存しない。
@@ -40,6 +44,7 @@ python work/csv-sql/make-fixture.py
 node work/csv-sql/verify.cjs
 node work/csv-sql/verify-http.cjs
 node work/csv-sql/verify-quotes.cjs
+node work/csv-sql/verify-structured.cjs
 ```
 
 生成 CSV は **1,073,741,864 bytes**（1 GiB より 40 bytes 大きい）、8 BIGINT 列、**13,421,773 行**。100,000 行の数値ブロックを繰り返し、端数を追加する。行のサイズは 80 bytes。文字列・高カーディナリティの巨大 JOIN などを代表するデータではない。期待件数と合計値は Python で独立に計算する。CSV と配布アーカイブは Git 管理対象外。

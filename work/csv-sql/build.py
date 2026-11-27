@@ -28,15 +28,16 @@ library, count = re.subn(r'import\*as (\w+) from"apache-arrow";', r'var \1 = glo
 assert count == 2, 'Upstream Arrow imports changed'
 arrow = (HERE / 'arrow' / 'Arrow.es2015.min.js').read_text(encoding='utf-8')
 arrow = re.sub(r'//# sourceMappingURL=.*', '', arrow)
-library = arrow + '\n' + library
-licenses = '\n\n'.join(name + '\n' + (HERE / name).read_text(encoding='utf-8') for name in ['duckdb-LICENSE', 'arrow-LICENSE', 'arrow-NOTICE', 'sha256-LICENSE', 'ws-LICENSE', 'wasm-feature-detect-LICENSE', '../emscripten-LICENSE'])
+yaml = (HERE / 'yaml' / 'js-yaml.min.js').read_text(encoding='utf-8')
+library = arrow + '\n' + library + '\n' + yaml
+licenses = '\n\n'.join(name + '\n' + (HERE / name).read_text(encoding='utf-8') for name in ['duckdb-LICENSE', 'arrow-LICENSE', 'arrow-NOTICE', 'sha256-LICENSE', 'ws-LICENSE', 'wasm-feature-detect-LICENSE', 'yaml-LICENSE', '../emscripten-LICENSE'])
 licenses = '\n'.join(line.rstrip() for line in licenses.splitlines())
 page = (HERE / 'page.html').read_text(encoding='utf-8')
 replacements = {
     '%%LICENSES%%': html.escape(licenses),
     '%%WASM%%': base64.b64encode((DIST / 'duckdb-eh.wasm').read_bytes()).decode('ascii'),
     '%%LIBRARY%%': js_string(library),
-    '%%WORKER%%': js_string((HERE / 'worker.js').read_text(encoding='utf-8')),
+    '%%WORKER%%': js_string((HERE / 'structured.js').read_text(encoding='utf-8') + '\n' + (HERE / 'worker.js').read_text(encoding='utf-8')),
     '%%APP%%': (HERE / 'app.js').read_text(encoding='utf-8'),
 }
 for key, value in replacements.items():

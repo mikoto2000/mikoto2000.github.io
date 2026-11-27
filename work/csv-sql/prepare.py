@@ -6,6 +6,10 @@ import urllib.request
 
 HERE = Path(__file__).resolve().parent
 PACKAGES = [
+    ('https://registry.npmjs.org/js-yaml/-/js-yaml-4.1.1.tgz',
+     'js-yaml-4.1.1.tgz', '948181607d4fb62dde7b9e04a62d89b20e62cd0c5659ceb711bc31768d00436f',
+     {'package/dist/js-yaml.min.js': 'yaml/js-yaml.min.js',
+      'package/LICENSE': 'yaml-LICENSE'}),
     ('https://registry.npmjs.org/@duckdb/duckdb-wasm/-/duckdb-wasm-1.32.0.tgz',
      'duckdb-wasm-1.32.0.tgz', '13c29d80888b795cb493b281685d3d3e1738db2fad50d419e2884c6585789722',
      {'package/dist/duckdb-browser-blocking.mjs': 'package/dist/duckdb-browser-blocking.mjs',
